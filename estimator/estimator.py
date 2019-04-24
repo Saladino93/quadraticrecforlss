@@ -131,7 +131,9 @@ class Estimator(object):
         return None
 
     @vectorize	
-    def getN(self, a, b, K):
+    def getN(self, a, b, K = None):
+	if K is None:
+		K = self.Krange
 	Kindex = np.where(self.Krange == K)[0]#[0]
 	try:
             return self.Nmatrix[a+","+b][Kindex]

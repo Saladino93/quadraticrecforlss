@@ -38,10 +38,13 @@ est.addF('t', (2./7.)*est.mu**2.)
 est.addF('b11', 0.5*(1./M(est.q1)+1./M(est.q2)))
 est.addF('b01', 0.5*est.mu*est.q1*est.q2*(1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))))
 est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu))*(1./M(est.q1))*(1./M(est.q2)))
-est.addF('b20', 1.)
-est.addF('b02', 0.5*(1./(M(est.q1)*M(est.q2))))
+#est.addF('b20', 1.)
+#est.addF('b02', 0.5*(1./(M(est.q1)*M(est.q2))))
 
 
 est.generateNs(K_of_interest, minkhrec, maxkhrec)
 
+Ngg = est.getN('g', 'g')
+Ngb11 = est.getN('g', 'b11')
 
+print('Done')
