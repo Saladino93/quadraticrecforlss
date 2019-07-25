@@ -4,7 +4,7 @@ from scipy.interpolate import interp1d
 from scipy import integrate
 import itertools
 import functools
-
+from mpmath import mp
 
 class vectorize(np.vectorize):
     def __get__(self, obj, objtype):
@@ -26,6 +26,9 @@ class Estimator(object):
 	self.q1, self.q2, self.mu = sp.symbols('q1 q2 mu')
 	self._values = {}
 	
+	self._expr = {}
+	self._exprfunc = {}
+
 	self.keys = []
         return None
 
@@ -74,15 +77,54 @@ class Estimator(object):
 
         return result
 
+    def addexpression(self, key, expr):
+	self._expr[key] = expr
+	self._exprfunc[key] = sp.lambdify([self.q1, self.q2, self.mu], self._expr[key], 'numpy')
 
-    def _outer_integral(self, K, a, b):
+
+    @vectorize
+    def integrateexpression(self, key, K, minq, maxq):
+	f = self._exprfunc[key]
+	 
+	def function(q, mu):
+
+		modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+		result = 2*np.pi*q**2./(2*np.pi)**3.
+
+		result *= f(q, modK_q, mu)
+		result /= (2*self.P(q)*self.P(modK_q))
+
+		return result 
+
+
+	options = {'limit' : 1000, 'epsrel': 1e-6, 'epsabs': 0.}
+     
+        ris = integrate.nquad(function, [[minq, maxq], [-1., 1.]], opts = [options, options])
+       	
+	err = ris[1]
+        integral = ris[0]
+
+	return integral, err
+
+    def _integrate(self, function, minq, maxq):
+
+        options = {'limit' : 50}
+
+        ris = integrate.nquad(function, [[minq, maxq], [-1., 1.]], opts = [options, options])
+        ris = ris[0]
+
+        integral = ris
+
+        return integral**-1.
+
+    def _outer_integral(self, f, K, a, b):
         def _integrand(q, mu):
 
            modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
-           result *= self.f(a, q, K, mu)*self.f(b, q, K, mu)
+           result *= f(a, q, K, mu)*f(b, q, K, mu)
            result /= (2*self.P(q)*self.P(modK_q))
 
            return result
@@ -92,9 +134,9 @@ class Estimator(object):
     @vectorize
     def N(self, a, b, K, minq, maxq):
 
-        function = self._outer_integral(K, a, b)
+        function = self._outer_integral(self.f, K, a, b)
 
-	options = {'limit' : 50}
+	options = {'limit' : 100, 'epsrel': 1e-4}
 
 	ris = integrate.nquad(function, [[minq, maxq], [-1., 1.]], opts = [options, options])
         ris = ris[0]
@@ -131,7 +173,9 @@ class Estimator(object):
         return None
 
     @vectorize	
-    def getN(self, a, b, K):
+    def getN(self, a, b, K = None):
+	if K is None:
+		K = self.Krange
 	Kindex = np.where(self.Krange == K)[0]#[0]
 	try:
             return self.Nmatrix[a+","+b][Kindex]
