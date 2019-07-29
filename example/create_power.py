@@ -17,9 +17,9 @@ def getpowerspectrum(z = [0.], minkh = 1e-4, maxkh = 10, nonlinear = True, npoin
     pars.InitPower.set_params(ns=0.965)
     pars.set_matter_power(redshifts = z, kmax = 2)
     if nonlinear:
-    	pars.NonLinear = model.NonLinear_both
+        pars.NonLinear = model.NonLinear_both
     else:
-	pars.NonLinear = model.NonLinear_none
+        pars.NonLinear = model.NonLinear_none
     results = camb.get_results(pars)
     results.calc_power_spectra(pars)
     kh_nonlin, z_nonlin, pk_nonlin = results.get_matter_power_spectrum(minkh = minkh, maxkh = maxkh, npoints = npoints)

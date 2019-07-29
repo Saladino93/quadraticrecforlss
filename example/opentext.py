@@ -7,8 +7,8 @@ def get_values(filename):
         line = line.split()
         if not line:  # empty line?
             continue
-	try:
-        	answer[line[0]] = float(line[1:][0])
-	except:
-		answer[line[0]] = (line[1:][0])
+        try:
+            answer[line[0]] = float(line[1:][0])
+        except:
+            answer[line[0]] = (line[1:][0])
   return answer

@@ -16,22 +16,21 @@ import pickle
 
 
 def faa(r, cgg, cgn, cnn, dercgg, dercgn, dercnn):
-	A = dercgg/cgg-2*r**2.*dercgn/cgn
-	A = A**2.
-	B = 2*r**2.*(1.-r**2.)*(dercgn/cgn)**2.
-	C = 2*r**2.*dercnn/cnn
-	C *= (dercgg/cgg-2*dercgn/cgn)
-	print(B+C)
-	D = dercnn/cnn
-	D = D**2.
-	tot = 1./(2*(1.-r**2.)**2.)
-	tot *= (A+B+C+D)
-	return tot
+    A = dercgg/cgg-2*r**2.*dercgn/cgn
+    A = A**2.
+    B = 2*r**2.*(1.-r**2.)*(dercgn/cgn)**2.
+    C = 2*r**2.*dercnn/cnn
+    C *= (dercgg/cgg-2*dercgn/cgn)
+    D = dercnn/cnn
+    D = D**2.
+    tot = 1./(2*(1.-r**2.)**2.)
+    tot *= (A+B+C+D)
+    return tot
 
 
 if len(sys.argv) == 1:
-        print('Choose your directory!')
-        sys.exit()
+    print('Choose your directory!')
+    sys.exit()
 
 direc = str(sys.argv[1])
 
@@ -47,7 +46,7 @@ output = direc+'/pics/'
 print('Parameter Values are, ', values)#, 'bgfid ', bgfid, ' bnfid ', bnfid, ' cfid ',cfid, ' fnlfid ', fnlfid)
 
 with open(direc+'/data_dir/spectra.pickle', 'rb') as handle:
-    dic = pickle.load(handle)
+    dic = pickle.load(handle, encoding='latin1')
 
 P_L = dic['PL']
 Pgg = dic['Cgg']
@@ -110,7 +109,7 @@ fnl = dic['fnl']
 #Cnn = PL*(bg*(dic['kg']+dic['kphiphi']*dic['Ngg']/dic['Ngphiphi']+dic['kb01']*dic['Ngg']/dic['Ngb01']+dic['kb11']*dic['Ngg']/dic['Ngb11']+dic['kb02']*dic['Ngg']/dic['Ngb02']))**2.+dic['Ngg']
 kappafid = 1.
 def D(y):
-	return 1/(1+y)
+    return 1/(1+y)
 z = 0.
 
 #bn = 0.19
@@ -183,10 +182,10 @@ IntegratedFishgg = np.array([])
 IntegratedFishVol = np.array([])
 IntegratedFishggVol = np.array([])
 for Kmin in Ks:
-	IntFish = fore.getIntregratedFisher(K, FisherPerMode, Kmin, kmax, V)
-	IntegratedFish = np.append(IntegratedFish, IntFish**-0.5)
-	IntFish = fore.getIntregratedFisher(K, FisherPerModegg, Kmin, kmax, V)
-	IntegratedFishgg = np.append(IntegratedFishgg, IntFish**-0.5)
+    IntFish = fore.getIntregratedFisher(K, FisherPerMode, Kmin, kmax, V)
+    IntegratedFish = np.append(IntegratedFish, IntFish**-0.5)
+    IntFish = fore.getIntregratedFisher(K, FisherPerModegg, Kmin, kmax, V)	
+    IntegratedFishgg = np.append(IntegratedFishgg, IntFish**-0.5)
 
 h = 0.67
 V = (2*np.pi)**3/kmin**3.#h**3*100*10**9
@@ -194,10 +193,10 @@ V = (np.pi)**3/kmin**3/2.
 print('Volume, ', ((2*np.pi)**3/(kmin*h*1e3)**3.))
 
 for Kmin in Ks:
-        IntFish = fore.getIntregratedFisher(K, FisherPerMode, Kmin, kmax, V)
-        IntegratedFishVol = np.append(IntegratedFishVol, IntFish**-0.5)
-        IntFish = fore.getIntregratedFisher(K, FisherPerModegg, Kmin, kmax, V)
-        IntegratedFishggVol = np.append(IntegratedFishggVol, IntFish**-0.5)	
+    IntFish = fore.getIntregratedFisher(K, FisherPerMode, Kmin, kmax, V)
+    IntegratedFishVol = np.append(IntegratedFishVol, IntFish**-0.5)
+    IntFish = fore.getIntregratedFisher(K, FisherPerModegg, Kmin, kmax, V)
+    IntegratedFishggVol = np.append(IntegratedFishggVol, IntFish**-0.5)	
 
 text = ''#'zerocorr'
 np.savetxt(data_dir+'singlefisher'+text+'.txt', np.c_[K, error, errorgg])

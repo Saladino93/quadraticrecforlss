@@ -23,8 +23,8 @@ def D(y):
 ######
 
 if len(sys.argv) == 1:
-	print('Choose your directory!')
-	sys.exit()
+    print('Choose your directory!')
+    sys.exit()
 
 direc = str(sys.argv[1])
 
@@ -115,8 +115,8 @@ dic = {}
 dic['K'] = est.Krange
 
 for a, b in listKeys:
-	dic['N'+a+b] = est.getN(a, b)
-	dic['N'+b+a] = dic['N'+a+b]
+    dic['N'+a+b] = est.getN(a, b)
+    dic['N'+b+a] = dic['N'+a+b]
 
 betaf = 2.*deltac*(bg-1.)
 B = betaf
@@ -155,7 +155,7 @@ dfnlCgg = 2*(bg+(betaf*fnl*D(z))/M)*(betaf*D(z)/M)*PL
 
 terms = []
 for a in values:
-	terms += [dic['k'+a]*dic['Ngg']/dic['Ng'+a]]
+    terms += [dic['k'+a]*dic['Ngg']/dic['Ng'+a]]
 partial = bg*sum(terms)
 
 Cnn = (partial)**2.*PL+dic['Ngg']
