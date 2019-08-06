@@ -10,12 +10,54 @@ import sys
 
 from shutil import copyfile
 
+import nbodykit.lab as lab
+import nbodykit
+
+
+#######
+
+c = lab.cosmology.Planck15
+h = c.h
+H0 = 100.*h
+ombh2 = c.ombh2
+omch2 = c.omch2
+ns = c.ns
+
+
+#######
+
+vector = np.arange(0, 0.5, 0.0001)
+
+def getT(cosmology, redshift, vector):
+    transfer = nbodykit.cosmology.power.transfers.CLASS(cosmology, redshift = redshift)
+    T = transfer.__call__(vector)
+    return T
+
+
+def getM(cosmology, redshift, vector):
+    #T = getT(c, redshift, vector)
+    Omega_m = cosmology.Omega0_m
+    H0 = cosmology.H0
+    lightvel = 3.*10**5.
+    M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
+    return M
+    
+M = getM(c, redshift = 0., vector = vector)
+
+Plin = cosmology.LinearPower(c, redshift = 0., transfer='EisensteinHu')
+Kslin = np.arange(0.005, 0.5, 0.01)
+Plin = Plin(Kslin)
+
+np.savetxt('temp.txt',  np.c_[vector, M])
+#######
+
+#a lot copied from camb demo
 def getpowerspectrum(z = [0.], minkh = 1e-4, maxkh = 10, nonlinear = True, npoints = 200):
     pars = camb.CAMBparams()
-    pars.set_cosmology(H0=67.5, ombh2=0.022, omch2=0.122)
+    pars.set_cosmology(H0 = H0, ombh2 = ombh2, omch2 = omch2)
     pars.set_dark_energy() #omit?
-    pars.InitPower.set_params(ns=0.965)
-    pars.set_matter_power(redshifts = z, kmax = 2)
+    pars.InitPower.set_params(ns = ns)
+    pars.set_matter_power(redshifts = z, kmax = 10.)
     if nonlinear:
         pars.NonLinear = model.NonLinear_both
     else:
@@ -23,6 +65,11 @@ def getpowerspectrum(z = [0.], minkh = 1e-4, maxkh = 10, nonlinear = True, npoin
     results = camb.get_results(pars)
     results.calc_power_spectra(pars)
     kh_nonlin, z_nonlin, pk_nonlin = results.get_matter_power_spectrum(minkh = minkh, maxkh = maxkh, npoints = npoints)
+    trans = results.get_matter_transfer_data()
+    kh = trans.transfer_data[0, :, 0]
+    delta = trans.transfer_data[model.Transfer_cdm-1, :, 0]
+    #print(kh/kh_nonlin) 
+    np.savetxt(direc+'linear_power.txt', np.c_[kh, delta])
     return kh_nonlin, z_nonlin, pk_nonlin
 
 
@@ -68,8 +115,8 @@ K_linear = power_arr[0]
 
 print('Done')
 
-np.savetxt(direc+'linear_power.txt', np.c_[K_linear, linear_power])
-np.savetxt(direc+'nonlinear_power.txt', np.c_[th_nlK, th_nlpower])
+np.savetxt(direc+'linear_power.txt', np.c_[K_linear*h, linear_power*h**-3.])
+np.savetxt(direc+'nonlinear_power.txt', np.c_[th_nlK*h, th_nlpower*h**-3.])
 #np.savetxt(direc+'total_power.txt', np.c_[K, P_tot])
 #np.savetxt(direc+'total_withlinear_power.txt', np.c_[K_linear, P_totlinear])
 

@@ -14,6 +14,7 @@ import scipy
 
 import pickle
 
+import sympy as sp
 
 def faa(r, cgg, cgn, cnn, dercgg, dercgn, dercnn):
     A = dercgg/cgg-2*r**2.*dercgn/cgn
@@ -26,7 +27,6 @@ def faa(r, cgg, cgn, cnn, dercgg, dercgn, dercnn):
     tot = 1./(2*(1.-r**2.)**2.)
     tot *= (A+B+C+D)
     return tot
-
 
 if len(sys.argv) == 1:
     print('Choose your directory!')
@@ -63,6 +63,26 @@ fnlfid = values['fnlfid']
 
 shot = 1./dic['ngal']+0.*Pgg
 
+
+#### Define symbols
+
+b, fnl, nbar, Pnl, func = sp.symbols('b fnl nbar Pnl func')
+
+bias = b+fnl*func
+P_total = bias**2.+1/nbar
+
+
+print(P_total)
+
+print(sp.diff(P_total, b))
+
+derb_P_s = sp.diff(P_total, b)
+derb_P = sp.lambdify([b, fnl, nbar, Pnl, func], derb_P_s, 'numpy')
+
+result = derb_P(1., 0., 1., Pnn*0.+1., Pgn*0.+1.)
+print(result)
+'''
+
 fig, ax = plt.subplots( nrows=1, ncols=1 )
 #plt.xlim(0.01, 0.1)
 #plt.ylim(1e1, 1e8)
@@ -92,14 +112,6 @@ keyfnl = 'fnl'
 
 el1, el2 = keyfnl, keyfnl
 
-'''
-mu = 0 # our results do not depend on mu 
-#forecast0 = fore.getFisherpermodefnlfid0(el1, el2, k = K, mu = mu, Pgg = Pgg, Pnn = Pnn, Pgn = Pgn, cfid = cfid, bgfid = bgfid, bnfid = bnfid, kappafid = kappafid)
-
-forecast = fore.getFisherpermode(el1, el2, k = K, mu = mu, Pgg = Pgg, Pnn = Pnn, Pgn = Pgn, PLfid = P_L, fnlfid = fnlfid, cfid = cfid, bgfid = bgfid, bnfid = bnfid, kappafid = kappafid)
-
-forecastgg = fore.getFisherpermodeggonly(el1, el2, k = K, mu = mu, Pgg = Pgg, PLfid = P_L, fnlfid = fnlfid, cfid = cfid, bgfid = bgfid)
-'''
 
 def D(y):
     return 1/(1+y)
@@ -189,4 +201,4 @@ ax4.legend(loc = 'best', prop = {'size': 6})
 plt.subplots_adjust(hspace = 0.2, wspace = 0.5)
 fig.savefig(output+'plots.png', dpi = 300)
 plt.close(fig)
-
+'''

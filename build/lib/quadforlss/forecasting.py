@@ -12,17 +12,32 @@ def D(z):
     return 1./(1.+z)
 
 
-def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn):
-    gg, gn, nn, agg, agn, ann = sp.symbols('gg gn nn agg agn ann') #agn = der_a(C^{gn})
+'''
+b bias parameter on large scales
+fnl fnl parameter on large scales
+func function multiplying fnl
+nbar number density of tracers
+Pnl non linear power spectrum on large scales (approx Plinear on large scales)
+'''
+def definepowermodel(b, fnl, func, nbar, Pnl):
+    return 0
+
+
+def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn, bcgg = None, bcgn = None, bcnn = None):
+    if bcgg is None:
+        bcgg = acgg
+        bcgn = acgn
+        bcnn = acnn
+    gg, gn, nn, agg, agn, ann, bgg, bgn, bnn = sp.symbols('gg gn nn agg agn ann bgg bgn bnn') #agn = der_a(C^{gn})
     daC = sp.Matrix([[agg, agn], [agn, ann]])
+    dbC = sp.Matrix([[bgg, bgn], [bgn, bnn]])
     C = sp.Matrix([[gg, gn], [gn, nn]])
     invC = C.inv()
-    prod = daC*invC*daC*invC
+    prod = daC*invC*dbC*invC
     tr = prod.trace()
     final = 0.5*sp.simplify(tr)
-    expression = sp.lambdify([gg, gn, nn, agg, agn, ann], final, 'numpy')
-    #expression = final.subs({gg: cgg, gn: cgn, nn: cnn, agg: acgg, agn: acgn, ann: acnn})
-    result = expression(cgg, cgn, cnn, acgg, acgn, acnn)
+    expression = sp.lambdify([gg, gn, nn, agg, agn, ann, bgg, bgn, bnn], final, 'numpy')
+    result = expression(cgg, cgn, cnn, acgg, acgn, acnn, bcgg, bcgn, bcnn)
     return result
 
 
