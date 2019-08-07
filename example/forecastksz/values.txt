@@ -1,8 +1,8 @@
 ngal 1e-2
 minkh 1e-7
 maxkh 1.
-minkhanalysis 1e-3
-maxkhanalysis 0.1
+minkhanalysis 0.0006768356195
+maxkhanalysis 0.11
 minkhrec 0.051
 maxkhrec 0.15
 z 0.

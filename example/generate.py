@@ -34,7 +34,7 @@ values = opentext.get_values(direc+'/'+filename)
 nonlinpowerfile = direc+'/nonlinear_power.txt'
 linpowerfile = direc+'/linear_power.txt'
 
-Mtransferfile = 'M.txt'
+Mtransferfile = direc+'/M.txt'
 
 K, Pnlin = np.transpose(np.loadtxt(nonlinpowerfile))[0:2,:]
 Klin, Plin = np.transpose(np.loadtxt(linpowerfile))[0:2,:]
@@ -55,11 +55,11 @@ Pnlin = Pnlin[select]
 
 print('Values are, ', values)
 
-minkh = values['minkhanalysis'] #k*h
-maxkh = values['maxkhanalysis']
+minkh = values['minkanalysis'] 
+maxkh = values['maxkanalysis']
 
-minkhrec = values['minkhrec']
-maxkhrec = values['maxkhrec']
+minkhrec = values['minkrec']
+maxkhrec = values['maxkrec']
 
 bg = values['bgfid']
 

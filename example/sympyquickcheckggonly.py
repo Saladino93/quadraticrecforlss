@@ -45,9 +45,9 @@ print('Parameter Values are, ', values)#, 'bgfid ', bgfid, ' bnfid ', bnfid, ' c
 with open(direc+'/data_dir/spectra.pickle', 'rb') as handle:
     dic = pickle.load(handle, encoding='latin1')
 
-nonlinpowerfile = direc+'/ptest.txt'#'/nonlinear_power.txt'
+nonlinpowerfile = direc+'/nonlinear_power.txt'
 linpowerfile = direc+'/linear_power.txt'
-Mtransferfile = 'M.txt'
+Mtransferfile = direc+'/M.txt'
 
 K, Pnlin = np.transpose(np.loadtxt(nonlinpowerfile))[0:2,:]
 Klin, Plin = np.transpose(np.loadtxt(linpowerfile))[0:2,:]
@@ -186,7 +186,7 @@ plt.savefig(output+'fnlplot.png', dpi = 300)
 a1 = values['a1']
 a2 = values['a2']
 
-b20 = values['b20']
+z = values['z']
 
 b, b2, fnl, nbar, Pnl, fnlfunc = sp.symbols('b b2 fnl nbar Pnl fnlfunc')
 
@@ -202,6 +202,9 @@ Cgg = dic['Cgg']
 Cnn = dic['Cnn']
 Cgn = dic['Cgn']
 
+bg = dic['bg'] #gal bias
+b20 = dic['b20']
+
 Ngg = dic['Ngg']
 Ngs = dic['Ngs']
 Ngt = dic['Ngt']
@@ -211,6 +214,8 @@ Ngb11 = dic['Ngb11']
 Ngphiphi = dic['Ngphiphi']
 
 KK = dic['K']
+
+Mval = dic['M']
 
 fs = Ngg/Ngs
 ft = Ngg/Ngt
@@ -253,8 +258,8 @@ bias = bias(bg, b20, fnlfid)
 
 
 invM = 1./Mval
-function = scipy.interpolate.interp1d(kM, invM)
-invM = function(KK)
+#function = scipy.interpolate.interp1d(kM, invM)
+#invM = function(KK)
 func = 2*(b-1.)*(deltac*invM)
 biasg = b+fnl*func
 
@@ -285,6 +290,8 @@ derfnl_Pg = 2*biasg*derfnl_bias*Pnlin
 derb_Pgn = (biasg*derb_biasnew+derb_bias*bias)*Pnlin
 derb2_Pgn = (biasg*derb2_biasnew+derb2_bias*bias)*Pnlin
 derfnl_Pgn = (biasg*derfnl_biasnew+derfnl_bias*bias)*Pnlin
+
+print(dic['dfnlCgg']/derfnl_Pg)
 
 fbb = fore.getcompleteFisher(Cgg, Cgn, Cnn, derb_Pg, derb_Pgn, derb_Pn, derb_Pg, derb_Pgn, derb_Pn) #gg, gn, nn,
 ffnlfnl = fore.getcompleteFisher(Cgg, Cgn, Cnn, derfnl_Pg, derfnl_Pgn, derfnl_Pn, derfnl_Pg, derfnl_Pgn, derfnl_Pn) #gg, gn, nn,
@@ -376,11 +383,12 @@ invf_gonly = fint**-0.5
 
 plt.close()
 
+plt.title('Forecasts, for $f_{nl}=$'+str(fnlfid)+', $bg=$'+str(bg)+', $b_{20}=$'+str(b20)+ ', $z=$'+str(z))
 plt.xlabel('$K_{min}$ (Mpc$^{-1}$)')
 plt.ylabel('$ Integrated \sigma(f_{nl}) $')
 plt.loglog(Ks, invf_gonly, label = 'Non Marginalized Galaxy')
-plt.loglog(Ks, errfnlmarg_gonly, label = 'Marginalized Galaxy')
-plt.loglog(Ks, errfnlmarg, label = 'Marginalized Combined')
+plt.loglog(Ks, errfnlmarg_gonly, label = 'Marginalized Galaxy, wrt $f_{nl},\ b$')
+plt.loglog(Ks, errfnlmarg, label = 'Marginalized Combined, wrt $f_{nl},\ b,\ b2$')
 plt.loglog(Ks, invf, label = 'Non Marginalized Combined')
 plt.legend(loc = 'best', prop = {'size': 6})
 plt.rc('grid', linestyle = "-", color = 'black')
