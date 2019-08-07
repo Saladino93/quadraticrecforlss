@@ -10,46 +10,6 @@ import sys
 
 from shutil import copyfile
 
-import nbodykit.lab as lab
-import nbodykit
-
-
-#######
-
-c = lab.cosmology.Planck15
-h = c.h
-H0 = 100.*h
-ombh2 = c.ombh2
-omch2 = c.omch2
-ns = c.ns
-
-
-#######
-
-vector = np.arange(0, 0.5, 0.0001)
-
-def getT(cosmology, redshift, vector):
-    transfer = nbodykit.cosmology.power.transfers.CLASS(cosmology, redshift = redshift)
-    T = transfer.__call__(vector)
-    return T
-
-
-def getM(cosmology, redshift, vector):
-    #T = getT(c, redshift, vector)
-    Omega_m = cosmology.Omega0_m
-    H0 = cosmology.H0
-    lightvel = 3.*10**5.
-    M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
-    return M
-    
-M = getM(c, redshift = 0., vector = vector)
-
-Plin = cosmology.LinearPower(c, redshift = 0., transfer='EisensteinHu')
-Kslin = np.arange(0.005, 0.5, 0.01)
-Plin = Plin(Kslin)
-
-np.savetxt('temp.txt',  np.c_[vector, M])
-#######
 
 #a lot copied from camb demo
 def getpowerspectrum(z = [0.], minkh = 1e-4, maxkh = 10, nonlinear = True, npoints = 200):
