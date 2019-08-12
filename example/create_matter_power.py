@@ -10,7 +10,6 @@ import sys
 
 from shutil import copyfile
 
-
 def getT(cosmology, redshift, vector):
     transfer = nbodykit.cosmology.power.transfers.CLASS(cosmology, redshift = redshift)
     T = transfer.__call__(vector)
@@ -24,6 +23,11 @@ def getM(cosmology, redshift, vector):
     M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
     return M 
 
+def get_alpha(cosmology):
+    lightvel = 3.*10**5.
+    H0 = cosmology.H0*cosmology.h
+    Omega_m = cosmology.Omega0_m
+    return (2*lightvel**2./(3*H0**2.*Omega_m))
 
 filename = 'startingvalues.txt'
 values = opentext.get_values(filename)
@@ -69,6 +73,8 @@ powerlin = powerlin(vector_h) #this is in units of h^-3Mpc^3
 powerlin *= cosmo.h**-3. #to get units Mpc^3
 
 M = getM(cosmo, redshift = z, vector = vector_h) #this is in dimensionless units
+
+print('Alpha is (Mpc**2), ', get_alpha(cosmo))
 
 print('Done')
 

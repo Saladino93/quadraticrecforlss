@@ -77,8 +77,8 @@ b20 = values['b20']
 betaf = 2.*deltac*(bg-1.)
 
 shot = 1/nbar
-Ptot = (bg+(betaf*fnl*D(z))/Mscipy(K))**2.*Pnlin+shot
-Pnlinsign = Pnlin#(bg+(betaf*fnl*D(z))/Mscipy(K))**2.*Pnlin
+Ptot = (bg+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
+Pnlinsign = (bg+(betaf*fnl*D(z))/Mscipy(K))**2.*Pnlin
 
 cg = bg+b20/2.*(7./5.)+(7./5.)*(2./21.)*(bg-1)
 cs = bg*1
@@ -96,7 +96,7 @@ est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu)
 est.addF('t', (2./7.)*est.mu**2.)
 est.addF('b11', 0.5*(1./M(est.q1)+1./M(est.q2)))
 est.addF('b01', 0.5*est.mu*est.q1*est.q2*(1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))))
-est.addF('b02', 0.5*(1./(M(est.q1)*M(est.q2))))
+est.addF('b02', (1./(M(est.q1)*M(est.q2))))
 est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu))*(1./M(est.q1))*(1./M(est.q2)))
 
 est.generateNs(K_of_interest, minkhrec, maxkhrec)
@@ -104,6 +104,8 @@ est.generateNs(K_of_interest, minkhrec, maxkhrec)
 
 
 #######DICTIONARTY OF STUFF
+
+prefac = 1.
 
 M = Mscipy(est.Krange)
 
@@ -115,13 +117,13 @@ dic = {}
 dic['K'] = est.Krange
 
 for a, b in listKeys:
-    dic['N'+a+b] = est.getN(a, b)
+    dic['N'+a+b] = prefac**2.*est.getN(a, b)
     dic['N'+b+a] = dic['N'+a+b]
 
 betaf = 2.*deltac*(bg-1.)
 B = betaf
 C = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(bg-1.))-2.*(bg-1.))
-A = (2./a1**2.)*(deltac*(b20-2*(a1+a2)*(bg-1.))-a1**2.*(bg-1.))+2.*deltac*(bg-1.)
+A = (2./a1)*(deltac*(b20-2*(a1+a2)*(bg-1.))-a1**2.*(bg-1.))+2.*deltac*(bg-1.)
 
 dic['minkh'] = minkh
 dic['maxkh'] = maxkh
@@ -156,10 +158,10 @@ dfnlCgg = 2*(bg+(betaf*fnl*D(z))/M)*(betaf*D(z)/M)*PL
 terms = []
 for a in values:
     terms += [dic['k'+a]*dic['Ngg']/dic['Ng'+a]]
-partial = bg*sum(terms)
+partial = prefac*bg*sum(terms)
 
 Cnn = (partial)**2.*PL+dic['Ngg']
-derpartialfnl = (bg*dic['Ngg']/dic['Ngphiphi'])+A*(dic['Ngg']/dic['Ngb11'])+B*(dic['Ngg']/dic['Ngb01'])+2*fnl*C*(dic['Ngg']/dic['Ngb02'])
+derpartialfnl = prefac*bg*((bg*dic['Ngg']/dic['Ngphiphi'])+A*(dic['Ngg']/dic['Ngb11'])+B*(dic['Ngg']/dic['Ngb01'])+2*fnl*C*(dic['Ngg']/dic['Ngb02']))
 dfnlCnn = 2*partial*derpartialfnl*PL
 
 Cgn = (bg+(betaf*fnl*D(z))/M)*partial*PL
