@@ -1,0 +1,16 @@
+ngal 1e-2
+mink 1e-7
+maxk 1.
+minkanalysis 0.0006768356195
+maxkanalysis 0.034
+minkrec 0.0345474
+maxkrec 0.10160999999999999
+z 0.
+npoints 10000
+fnlfid 0.
+bgfid 1.6
+b20 0.38
+deltac 1.42
+a1 1
+a2 -0.8095238095
+name prova_biased_estimator

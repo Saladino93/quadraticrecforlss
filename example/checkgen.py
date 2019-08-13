@@ -75,11 +75,15 @@ a2 = values['a2']
 
 b20 = values['b20']
 
+#bg = 1.1
+
 betaf = 2.*deltac*(bg-1.)
 
 shot = 1/nbar
 Ptot = (bg+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
 Pnlinsign = (bg+(betaf*fnl*D(z))/Mscipy(K))**2.*Pnlin
+
+Ktot = K.copy()
 
 cg = bg+b20/2.*(7./5.)+(7./5.)*(2./21.)*(bg-1)
 cs = bg*1
@@ -93,19 +97,32 @@ K_of_interest = np.arange(minkh, maxkh, 0.001)
 Ptot = scipy.interpolate.interp1d(K, Ptot)
 Plin = scipy.interpolate.interp1d(K, Plin)
 
+#minkhrec = 0.07381163271
+#maxkhrec = 0.2214348981
+
+print('K of interest, ', K_of_interest)
+print('mink for rec', minkhrec, ', maxk for rec', maxkhrec)
+
+
 def _outer_integral(K):
         def _integrand(mu, q):
            modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
            result = 2*np.pi*q**2./(2*np.pi)**3.
-           result *= 2**2*(Plin(q)+Plin(modK_q))**2.
+           result *= (5/7)**2*2**2*(Plin(q)+Plin(modK_q))**2.
            result /= (2*Ptot(q)*Ptot(modK_q))
-           return result*(5/7)**2
+           return result
         return _integrand
 
 N = []
+errs = []
 
 for K in K_of_interest:
-    N += [scipy.integrate.dblquad(_outer_integral(K), minkhrec, maxkhrec, lambda x: -1., lambda x: 1.)[0]]
+    res = scipy.integrate.dblquad(_outer_integral(K), minkhrec, maxkhrec, lambda x: -1., lambda x: 1.) 
+    N += [res[0]]
+    errs += [res[1]]
+
+#print('Integrals, ', N)
+#print('Errs, ', errs)
 
 
 N = np.array(N)**-1,
@@ -115,5 +132,8 @@ with open(direc+'/data_dir/spectra.pickle', 'rb') as handle:
     dic = pickle.load(handle, encoding='latin1')
 
 print(dic['Ngg'])
+
+Ptot = (bg+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
+np.savetxt(direc+'/totpower.txt', np.c_[Ktot, Ptot])
 
 print('Done')

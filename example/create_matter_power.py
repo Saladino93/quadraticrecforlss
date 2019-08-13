@@ -9,7 +9,7 @@ import os
 import sys
 
 from shutil import copyfile
-
+print(cosmology.Planck15.h)
 def getT(cosmology, redshift, vector):
     transfer = nbodykit.cosmology.power.transfers.CLASS(cosmology, redshift = redshift)
     T = transfer.__call__(vector)
