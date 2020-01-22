@@ -481,6 +481,9 @@ for k in Ks:
     el = np.sqrt(invmat[1, 1])
     errfnlmarg_gonly += [el]
 
+errfnlmarg = np.array(errfnlmarg)
+errfnlmarg_gonly = np.array(errfnlmarg_gonly)
+
 func_f = func_ffnlfnl
 
 fint = []
@@ -519,3 +522,18 @@ plt.minorticks_on()
 plt.grid(b = True, which = 'minor', color = '#999999', linestyle = '-', alpha = 0.2)
 #plt.ylim(bottom = 5, top = 300)
 plt.savefig(output+'fnlplotcomb.png', dpi = 300)
+plt.close()
+
+plt.title('Forecasts, for $f_{nl}=$'+str(fnlfid)+', $bg=$'+str(bg)+', $b_{20}=$'+str(b20)+ ', $z=$'+str(z))
+plt.xlabel('$K_{min}$ (Mpc$^{-1}$)')
+plt.ylabel('$ Integrated \sigma(f_{nl}) $')
+plt.loglog(Ks, invf/invf_gonly, label = '(Non Marginalized Combined)/(Non Marginalized Galaxy)')
+plt.loglog(Ks, errfnlmarg/errfnlmarg_gonly, label = '(Marginalized Combined, wrt $f_{nl},\ b,\ b2$)/(Marginalized Galaxy, wrt $f_{nl},\ b$)')
+plt.legend(loc = 'best', prop = {'size': 6})
+plt.rc('grid', linestyle = "-", color = 'black')
+#plt.grid(b = True, which = 'major', color = '#666666', linestyle = '-')
+#plt.minorticks_on()
+#plt.grid(b = True, which = 'minor', color = '#999999', linestyle = '-', alpha = 0.2)
+#plt.ylim(bottom = 5, top = 300)
+plt.savefig(output+'rapp_fnlplotcomb.png', dpi = 300)
+

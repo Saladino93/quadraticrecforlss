@@ -85,5 +85,45 @@ def getIntregratedFisher(K, FisherPerMode, kmin, kmax, V):
     else:
         function = scipy.interpolate.interp1d(K, FisherPerMode)
         result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)		
-        result = result[0]*V/(2.*np.pi)**2.
+        result = result[0]*V/(2.*np.pi**2.)
         return result
+
+def getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
+    Nvars = len(listdersPA)
+    NKs = len(PA)
+    AllFisherElements = np.zeros((Nvars, Nvars, NKs))
+    for i in range(Nvars):
+        for j in range(i, Nvars):
+            der_i_PA = listdersPA[i]
+            der_j_PA = listdersPA[j]
+            der_i_PB = listdersPB[i]
+            der_j_PB = listdersPB[j]
+            der_i_PAB = listdersPAB[i]
+            der_j_PAB = listdersPAB[j]
+            fisherpermode_i_j = getcompleteFisher(PA, PAB, PB, der_i_PA, der_i_PAB, der_i_PB, der_j_PA, der_j_PAB, der_j_PB)
+            AllFisherElements[i, j] = fisherpermode_i_j
+    for k in range(NKs):
+        M = AllFisherElements[:, :, k]
+        AllFisherElements[:, :, k] = (M+M.T-np.diag(np.diag(M)))
+    return AllFisherElements
+
+def getMarginalizedCov(K, V, kmin, kmax, listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
+    Nvars = len(listdersPA)
+    Ks = np.linspace(kmin, kmax/1.5, num = 20)
+    NKs = len(Ks)
+    AllFisherElements = getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB)
+    mat = np.zeros((Nvars, Nvars, NKs))
+    for i in range(Nvars):
+        for j in range(i, Nvars):
+            temp = []
+            for k_minimum in Ks:
+                temp += [getIntregratedFisher(K, AllFisherElements[i, j], k_minimum, kmax, V)]
+            mat[i, j] = np.array(temp)
+            
+    MarginalizedCov = mat.copy()
+    for k in range(NKs):
+        M = mat[:, :, k]
+        mat[:, :, k] = (M+M.T-np.diag(np.diag(M)))
+        M = mat[:, :, k]
+        MarginalizedCov[:, :, k] = np.linalg.inv(M)
+    return MarginalizedCov

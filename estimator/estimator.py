@@ -4,7 +4,9 @@ from scipy.interpolate import interp1d
 from scipy import integrate
 import itertools
 import functools
+
 from mpmath import mp
+import vegas
 
 class vectorize(np.vectorize):
     def __get__(self, obj, objtype):
@@ -130,22 +132,127 @@ class Estimator(object):
         return _integrand
 
 
+    def _outer_integral_vegas(self, f, K, a, b):
+        @vegas.batchintegrand
+        def _integrand(x):
+           mu = x[:, 0]
+           q = x[:, 1]
+
+           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+
+           result = 2*np.pi*q**2./(2*np.pi)**3.
+
+           result *= f(a, q, K, mu)*f(b, q, K, mu)
+           result /= (2*self.P(q)*self.P(modK_q))
+
+           return result
+        return _integrand
+
+
+    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+        @vegas.batchintegrand
+        def _integrand(x):
+           mu = x[:, 0]*mu_sign
+           q = x[:, 1]
+
+           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+
+           result = 2*np.pi*q**2./(2*np.pi)**3.
+
+           result *= f(a, q, K, mu)*function1(q)*function2(modK_q)
+           result /= (2*self.P(q)*self.P(modK_q))
+
+           return result
+        return _integrand
+
+
+    def _double_outer_integral_vegas_for_g(self, function, f, K, mu_sign, mu_sign_prime, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+        @vegas.batchintegrand
+        def _integrand(x):
+           phi = x[:, 0]
+           phi_prime = x[:, 1]
+           mu = np.cos(x[:, 0])*mu_sign
+           mu_prime = np.cos(x[:, 1])*mu_sign
+           theta = x[:, 2]
+           theta_prime = x[:, 3]
+           q = x[:, 4]
+           q_prime = x[:, 5]
+
+           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+           
+           modK_q_prime = np.sqrt(K**2.+q_prime**2.-2*K*q_prime*mu_sign_prime)
+
+           result = q**2./(2*np.pi)**3.*q_prime**2./(2*np.pi)**3.
+
+           qtot = (q*np.sin(theta)*np.cos(phi)+q_prime*np.sin(theta_prime)*np.cos(phi_prime))**2.
+           qtot += (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
+           qtot += (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
+           qtot = np.sqrt(qtot)
+
+           result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot)
+           result /= (2*self.P(q)*self.P(modK_q)*2*self.P(q_prime)*self.P(modK_q_prime))
+
+           return result
+        return _integrand
+
+
     @vectorize
-    def N(self, a, b, K, minq, maxq):
+    def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2, vegas_mode = False):
 
-        function = self._outer_integral(self.f, K, a, b)
+        if vegas_mode:
 
-        options = {'limit' : 100, 'epsrel': 1e-4}
+            nitn = 100
+            neval = 1000
 
-        ris = integrate.nquad(function, [[minq, maxq], [-1., 1.]], opts = [options, options])
-        ris = ris[0]
+            function = self._outer_integral_vegas_for_g(function1, function2, self.f, K, mu_sign, a)
+            integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 100)
+            result = integ(function, nitn = nitn, neval = neval)
+            integral = result.mean
 
-        integral = ris
+        return integral
+
+
+    @vectorize
+    def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime, minq_prime, maxq_prime, function, vegas_mode = False):
+
+        if vegas_mode:
+
+            nitn = 100
+            neval = 1000
+
+            function = self._double_outer_integral_vegas_for_g(function, self.f, K, mu_sign, mu_sign_prime, a)
+            integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+            result = integ(function, nitn = nitn, neval = neval)
+            integral = result.mean
+
+        return integral
+
+
+
+    @vectorize
+    def N(self, a, b, K, minq, maxq, vegas_mode = False):
+
+        if vegas_mode:
+
+            nitn = 100
+            neval = 1000
+
+            function = self._outer_integral_vegas(self.f, K, a, b)
+            integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 100)
+            result = integ(function, nitn = nitn, neval = neval)
+            integral = result.mean
+ 
+        else:
+            function = self._outer_integral(self.f, K, a, b)
+            options = {'limit' : 100, 'epsrel': 1e-4}
+            ris = integrate.nquad(function, [[minq, maxq], [-1., 1.]], opts = [options, options])
+            ris = ris[0]
+            integral = ris
 
         return integral**-1.
 
 
-    def generateNs(self, K, minq, maxq, verbose = True):
+    def generateNs(self, K, minq, maxq, vegas_mode = False, verbose = True):
 
         values = self.keys
 
@@ -160,7 +267,7 @@ class Estimator(object):
             retList[key1+","+key2] = []
 
         for a, b in listKeys:
-            N = self.N(a, b, K, minq, maxq)
+            N = self.N(a, b, K, minq, maxq, vegas_mode)
             retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
 
         for a, b in listKeys:

@@ -99,6 +99,10 @@ deltak = maxkrec-minkrec
 deltaV = 4*np.pi/3*(maxkrec**3.-minkrec**3.)
 
 somma = 0.
+somma_fnl = 0.
+somma_other = 0.
+
+color = {'g': 'red', 's': 'blue', 't': 'green', 'phiphi': 'black', 'b01': 'orange', 'b02': 'yellow', 'b11': 'cyan'}
 
 fig, ax = plt.subplots( nrows = 1, ncols = 1 )
 plt.rc('font', size = 8)
@@ -112,20 +116,35 @@ for a in keys.astype(str):
         factor = -1.
         sign = '-'
     somma += bgfid*N/dic['N'+a+'g']*dic['k'+a]
-    ax.loglog(K, factor*bgfid*N/dic['N'+a+'g']*dic['k'+a], label = sign +a +' term')
+    if a in np.array(['phiphi', 'b01', 'b02', 'b11']):
+        somma_fnl += bgfid*N/dic['N'+a+'g']*dic['k'+a]
+    elif a in np.array(['g', 's', 't']):
+        somma_other += bgfid*N/dic['N'+a+'g']*dic['k'+a]
+    ax.loglog(K, factor*bgfid*N/dic['N'+a+'g']*dic['k'+a], color = color[a], label = sign +a +' term')
 
 ax.loglog(K, somma, label = 'Biases Sum')
-
-ax.loglog(K, bgfid*dic['kb01']*K*0.+8*np.pi*7/10*(1/alpha)*(deltak/deltaV), label = 'Analytic Approx b01')
-ax.loglog(K, bgfid*dic['kphiphi']*7./5.*1/M, label = 'Analytic Approx phiphi')
-ax.loglog(K, bgfid*dic['kb11']*7./10.*(1/M+4*np.pi/deltaV*1/alpha*deltak), label = 'Analytic Approx b11')
-ax.loglog(K, -bgfid*dic['kb02']*14./5.*2*np.pi*1./alpha*(deltak/deltaV)*1/M, label = 'Analytic Approx b02' )
-ax.loglog(K, bgfid*dic['derbfnllargescales']*fnl, label = '$f_{nl}$ signal in the galaxy field on large scales')
+ax.loglog(K, somma_fnl, label = 'fnl Biases Sum')
+intergration = 0.67*0.785278
+ax.loglog(K, K*0.+bgfid*dic['kb01']*4*np.pi*7/10*(1/alpha)*(deltak/deltaV+intergration), ls = '--', color = color['b01'], label = 'Analytic Approx b01')
+ax.loglog(K, bgfid*dic['kphiphi']*7./5.*1/M, ls = '--', color = color['phiphi'], label = 'Analytic Approx phiphi')
+ax.loglog(K, bgfid*dic['kb11']*7./10.*(1/M+4*np.pi/deltaV*1/alpha*deltak), ls = '--', color = color['b11'], label = 'Analytic Approx b11')
+ax.loglog(K, -bgfid*dic['kb02']*14./5.*2*np.pi*1./alpha*(1/deltaV)*1/M*intergration, color = color['b02'], ls = '--', label = 'Analytic Approx b02' )
+ax.loglog(K, bgfid*dic['derbfnllargescales']*fnl, color = 'pink', label = '$f_{nl}$ signal in the galaxy field on large scales')
 ax.legend(loc = 'best', prop = {'size': 6})
 fig.savefig(output+'biases_forecast_fid_fnl'+str(fnlfid)+'.png', dpi = 300)
 plt.close(fig)
 
-#8 approx print(((14./5.*2*np.pi*1./alpha*(deltak/deltaV)*1/M)/(N/dic['Nb02g']))**-1.)
+
+fig, ax = plt.subplots( nrows = 1, ncols = 1 )
+plt.rc('font', size = 8)
+plt.title('Biases induced in the mean field reconstruction case of $f_{nl}=$'+str(fnl)+', $nbar = $'+str(nbar)+ ' $b_g=$'+str(bgfid) )
+plt.xlabel('$K$ $(Mpc^{-1})$')
+plt.ylabel('$Bias$')
+ax.loglog(K, abs(dic['derbfnllargescales']/bgfid**2.-somma_fnl/somma_other))
+ax.legend(loc = 'best', prop = {'size': 6})
+fig.savefig(output+'contamination_difference_forecast_fid_fnl'+str(fnlfid)+'.png', dpi = 300)
+plt.close(fig)
+
 ################ Plot forecast
 
 keyfnl = 'fnl'
@@ -138,6 +157,7 @@ forecast = fore.getcompleteFisher(cgg = Pgg, cgn = Pgn, cnn = Pnn, acgg = dfnlPg
 forecastgg = fore.getcompleteFisher(cgg = Pgg, cgn = 1.e-4, cnn = 1.e-4, acgg = dfnlPgg, acgn = 0., acnn = 0.) #put only derivatives to zero
 
 r = Pgn/np.sqrt(Pgg*Pnn)
+print(r)
 
 f = faa(r = r, cgg = Pgg, cgn = Pgn, cnn = Pnn, dercgg = dfnlPgg, dercgn = dfnlPgn, dercnn = dfnlPnn)
 

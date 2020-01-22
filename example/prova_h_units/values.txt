@@ -1,0 +1,16 @@
+ngal 1e-2
+mink 1e-7
+maxk 1.
+minkanalysis 0.005
+maxkanalysis 0.05
+minkrec 0.051
+maxkrec 0.15
+z 0.
+npoints 10000
+fnlfid 1.
+bgfid 1.
+b20 0.38
+deltac 1.42
+a1 1
+a2 -0.8095238095
+name prova_h_units

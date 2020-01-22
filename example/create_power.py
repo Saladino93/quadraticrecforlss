@@ -14,6 +14,10 @@ from shutil import copyfile
 #a lot copied from camb demo
 def getpowerspectrum(z = [0.], minkh = 1e-4, maxkh = 10, nonlinear = True, npoints = 200):
     pars = camb.CAMBparams()
+    H0 = 67.5
+    ombh2 = 0.022
+    omch2 = 0.122
+    ns = 0.965
     pars.set_cosmology(H0 = H0, ombh2 = ombh2, omch2 = omch2)
     pars.set_dark_energy() #omit?
     pars.InitPower.set_params(ns = ns)
@@ -49,8 +53,8 @@ else:
     print('Baseline name already exist!')
     sys.exit()
 
-minkh = values['minkh']#1e-7
-maxkh = values['maxkh']#1
+minkh = values['mink']#1e-7
+maxkh = values['maxk']#1
 
 #Redshift
 z = np.array([values['z']])
@@ -74,7 +78,7 @@ linear_power = power_arr[2][0]
 K_linear = power_arr[0]
 
 print('Done')
-
+h = 1.
 np.savetxt(direc+'linear_power.txt', np.c_[K_linear*h, linear_power*h**-3.])
 np.savetxt(direc+'nonlinear_power.txt', np.c_[th_nlK*h, th_nlpower*h**-3.])
 #np.savetxt(direc+'total_power.txt', np.c_[K, P_tot])
