@@ -1,0 +1,38 @@
+name: '23012020'
+file_config:
+        base_dir: 'output/'
+        data_dir: 'data_dir/'
+        pics: 'pics/'
+        linear_power_name: 'linear_power.txt'
+        nonlinear_power_name: 'nonlinear_power.txt'
+        M_name: 'M.txt'
+data_creation_config:
+        npoints: 10000
+        mink: 1e-7
+        maxk: 1.
+        z: 0.
+        cosmology: 'Planck15' #can be: Planck15, Planck13
+survey_config:
+        primordial_pars:
+                fnl: 1.
+        gravity_dynamics_pars:
+                deltac: 1.42
+                a1: 1.
+                a2: -0.8095238095
+        tracer_properties:
+                mhalo: 0.773
+                nhalo: 3e-4
+                biases: # if blank use a theory expression
+                        b10: 1.
+                        b01: ''  
+                        b11: ''
+                        b02: ''
+                        b20: -0.05
+                        bs2: ''
+analysis_config:
+                mink_reconstruction: 0.05 
+                maxk_reconstruction: 0.15
+                mink_analysis: 0.001 
+                maxk_analysis: 0.04
+
+ 

@@ -13,28 +13,34 @@ import scipy.interpolate
 
 import itertools
 
-import opentext
+import yaml
 
-######
 
-def D(y):
-        return 1./(1.+y)
-
-######
 
 if len(sys.argv) == 1:
-    print('Choose your directory!')
+    print('Choose your configuration file!')
     sys.exit()
 
-direc = str(sys.argv[1])
+## Read configuration file
 
-filename = 'values.txt'
-values = opentext.get_values(direc+'/'+filename)
+values_file = str(sys.argv[1])
 
-nonlinpowerfile = direc+'/nonlinear_power.txt'
-linpowerfile = direc+'/linear_power.txt'
+with open(values_file, 'r') as stream:
+    data = yaml.safe_load(stream)
 
-Mtransferfile = direc+'/M.txt'
+values = data
+
+direc = values['name']
+base_dir = values['file_config']['base_dir']
+data_dir = values['file_config']['data_dir']
+
+direc = base_dir+direc+'/'
+
+#################
+
+nonlinpowerfile = direc+data_dir+values['file_config']['nonlinear_power_name']
+linpowerfile = direc+data_dir+values['file_config']['linear_power_name']
+Mtransferfile = direc+data_dir+values['file_config']['M_name']
 
 K, Pnlin = np.transpose(np.loadtxt(nonlinpowerfile))[0:2,:]
 Klin, Plin = np.transpose(np.loadtxt(linpowerfile))[0:2,:]
@@ -53,17 +59,115 @@ K = K[select]
 Plin = Plin[select]
 Pnlin = Pnlin[select]
 
+
+#################
+
+
 print('Values are, ', values)
 
-minkh = values['minkanalysis'] 
-maxkh = values['maxkanalysis']
 
-minkhrec = values['minkrec']
-maxkhrec = values['maxkrec']
+minkh = values['analysis_config']['mink_analysis'] 
+maxkh = values['analysis_config']['maxk_analysis']
 
-bg = values['bgfid']
+minkhrec = values['analysis_config']['mink_reconstruction']
+maxkhrec = values['analysis_config']['maxk_reconstruction']
 
-deltac = values['deltac']
+''' GRAVITY MODEL PARAMETERS '''
+
+deltac = values['survey_config']['gravity_dynamics_pars']['deltac']
+a1 = values['survey_config']['gravity_dynamics_pars']['a1']
+a2 = values['survey_config']['gravity_dynamics_pars']['a2']
+
+''' BIAS PARAMETERS '''
+
+b10 = values['survey_config']['tracer_properties']['biases']['b10']
+b01 = values['survey_config']['tracer_properties']['biases']['b01']
+b11 = values['survey_config']['tracer_properties']['biases']['b11']
+b02 = values['survey_config']['tracer_properties']['biases']['b02']
+b20 = values['survey_config']['tracer_properties']['biases']['b20']
+bs2 = values['survey_config']['tracer_properties']['biases']['bs2']
+
+b10 = float(b10)
+
+b20 = float(b20)
+
+betaf = 2.*deltac*(b10-1.)
+
+if bs2 == '':
+   print('Using theory value for bs2!')
+   bs2 = 2./7.*(b10-1)
+else:
+   bs2 = float(bs2)
+
+if b01 == '':
+   print('Using theory value for b01!')
+   b01 = betaf
+else:
+   b01 = float(b01)
+
+if b11 == '':
+   print('Using theory value for b11!')
+   b11 = (2./a1)*(deltac*(b20-2*(a1+a2)*(b10-1.))-a1**2.*(b10-1.))+2.*deltac*(b10-1.)
+else:
+   b11 = float(b11)
+
+if b02 == '':
+   print('Using theory value for b02!')
+   b02 = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(b10-1.))-2.*(b10-1.))
+else:
+   b02 = float(b02)
+   
+
+''' OTHER TRACER PROPERTIES '''
+
+mhalo = values['survey_config']['tracer_properties']['mhalo']
+nhalo = values['survey_config']['tracer_properties']['nhalo']
+fnl = values['survey_config']['primordial_pars']['fnl']
+
+mhalo = float(mhalo)
+nhalo = float(nhalo)
+fnl = float(fnl)
+
+''' MODEL INPUT TOTAL POWER SPECTRUM 
+
+The total power spectrum will be given by the square b10+betaf*fnl/M times the NON linear power spectrum plus the shot noise contribution of the tracer
+
+'''
+
+shot = 1/nhalo
+
+Ptot = (b10+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
+
+
+''' CREATE ESTIMATOR OBJECT FOR NOISE CALCULATIONS '''
+
+vegas_mode = True
+
+est = es.Estimator(K, Ptot, Plin)
+
+#this object is using sympy to define the different modecoupling kernels
+
+est.addF('g', 5./7.)
+est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu)
+est.addF('t', (2./7.)*est.mu**2.)
+est.addF('b11', 0.5*(1./M(est.q1)+1./M(est.q2)))
+est.addF('b01', 0.5*est.mu*est.q1*est.q2*(1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))))
+est.addF('b02', (1./(M(est.q1)*M(est.q2))))
+est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu))*(1./M(est.q1))*(1./M(est.q2)))
+
+
+#Which modes are reconstructed
+K_of_interest = np.arange(minkh, maxkh, 0.001)
+
+#Now calculate different noise curves and store them inside the object
+est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
+
+#Now calculate shot noise contributions to the bispectrum
+
+
+#Now calculate shot noise contributions to the trispectrum
+
+'''
 z = values['z']
 nbar = values['ngal']
 
@@ -250,3 +354,4 @@ with open(direc+'/data_dir/spectra.pickle', 'wb') as handle:
     pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 print('Done')
+'''
