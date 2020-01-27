@@ -138,10 +138,19 @@ shot = 1/nhalo
 
 Ptot = (b10+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
 
+Pnlinsign = (b10+(betaf*fnl)/Mscipy(K))**2.*Pnlin
 
 ''' CREATE ESTIMATOR OBJECT FOR NOISE CALCULATIONS '''
 
 vegas_mode = True
+
+if vegas_mode:
+    Ptot[K > maxkhrec] = np.inf
+    Pnlinsign[K > maxkhrec] = 0
+    Pnlinsign[K > minkhrec] = 0
+
+Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1.)
 
 est = es.Estimator(K, Ptot, Plin)
 
@@ -163,9 +172,47 @@ K_of_interest = np.arange(minkh, maxkh, 0.001)
 est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
 
 #Now calculate shot noise contributions to the bispectrum
+'''
+Schematically speaking
+int_q g_a*sum of terms
+ g_a = N_a * f_a/(2*P*P)
+'''
+
+Ngg = est.getN('g', 'g')
+
+a = 'g'
+mu_sign = 1.
+
+shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
+
+sh_bis_3 = Pnlinsign_scipy(K_of_interest)*(shotfactor_zeroPpower*Ngg)*shot
+
+shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+
+sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
+
+sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 #This contribution goes to the cross spectrum between new field and original one
 
 
 #Now calculate shot noise contributions to the trispectrum
+
+shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+shotfactor_onePpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+
+shotfactor_twoPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pnlinsign_scipy, vegas_mode = vegas_mode)
+
+shotfactor_double = est.double_integrate_for_shot(a, K_of_interest, mu_sign, minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, vegas_mode = vegas_mode)
+
+sh_tris_1 = (shotfactor_zeroPpower*Ngg)**2.*shot**3
+
+sh_tris_2 = (shotfactor_zeroPpower*Ngg)*((shotfactor_onePpower*Ngg))*shot**2.
+
+sh_tris_3_a = (shotfactor_onePpower*Ngg)**2.*shot 
+
+sh_tris_3_b = (shotfactor_zeroPpower*Ngg)*(shotfactor_twoPpower*Ngg)*shot
+
+sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b
 
 '''
 z = values['z']
@@ -261,15 +308,7 @@ sh_tris_4_b = shotfactor_id_id**2*Ngg**2.*shot**2.*Pnlinsign_scipy(K_of_interest
 
 shot_noise_trispectrum = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
 
-'''
-shotfactor = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-print(shotfactor)
-mu_sign = -1.
-shotfactor = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-print(shotfactor)
-'''
-
-#######DICTIONARTY OF STUFF
+#######DICTIONARTY OF STUFF###########
 
 prefac = 1.
 
