@@ -551,6 +551,8 @@ class Estimator(object):
             retList[key1+","+key2] = []
 
         for a, b in listKeys:
+            if verbose:
+                print('Computing N integral for (%s,%s)' % (a,b))
             N = self.N(a, b, K, minq, maxq, vegas_mode)
             retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
 
