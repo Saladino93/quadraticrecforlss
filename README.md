@@ -8,7 +8,7 @@ Reconstructing the initial matter density field before non linear gravitational 
 
 ### Dependencies
 
-numpy, scipy, simpy, matplotlib
+numpy, scipy, sympy, matplotlib, nbodykiy
 
 ### Installation
 

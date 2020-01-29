@@ -26,13 +26,18 @@ def D(z):
     return 1./(1.+z)
 
 
-def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn):
-    """Numerically compute Fisher matrix element for a single parameter.
+def definepowermodel(b, fnl, func, nbar, Pnl):
+    return 0
+
+
+def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn,
+                      bcgg = None, bcgn = None, bcnn = None):
+    """Numerically compute Fisher matrix element.
 
     The user must supply gg, gn, and nn covariance matrices, along with
-    their derivatives with respect to the parameter of interest. The function
+    their derivatives with respect to the parameters of interest. The function
     then computes
-        F_{aa} = \frac{1}{2} Tr[ (\d_a C) C^{-1} (\d_a C) C^{-1} ] ,
+        F_{aa} = \frac{1}{2} Tr[ (\d_a C) C^{-1} (\d_b C) C^{-1} ] ,
     where \d_a denotes the derivative with respect to parameter a and the trace
     and matrix multiplications are taken over elements of C, where C is
         C = C_{gg} C_{gn}
@@ -52,29 +57,42 @@ def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn):
         Derivative of gn covariance w.r.t. parameter a.
     acnn : float
         Derivative of nn covariance w.r.t. parameter a.
+    bcgg : float
+        Derivative of gg covariance w.r.t. parameter b.
+    bcgn : float
+        Derivative of gn covariance w.r.t. parameter b.
+    bcnn : float
+        Derivative of nn covariance w.r.t. parameter b.
 
     Returns
     -------
     result : float
         Fisher matrix element as described above.
     """
-    gg, gn, nn, agg, agn, ann = sp.symbols('gg gn nn agg agn ann') #agn = der_a(C^{gn})
 
-    # Symbolically define C and \d_a C matrices
+    # If nothing specified for parameter b, use parameter a covariance derivatives
+    if bcgg is None:
+        bcgg = acgg
+        bcgn = acgn
+        bcnn = acnn
+    gg, gn, nn, agg, agn, ann, bgg, bgn, bnn = sp.symbols('gg gn nn agg agn ann bgg bgn bnn')
+    #agn = der_a(C^{gn})
+
+    # Symbolically define C, \d_a C, and \d_b C matrices
     daC = sp.Matrix([[agg, agn], [agn, ann]])
+    dbC = sp.Matrix([[bgg, bgn], [bgn, bnn]])
     C = sp.Matrix([[gg, gn], [gn, nn]])
 
-    # Compute C^{-1} and (\d_a C) C^{-1} (\d_a C) C^{-1}, then take the trace
+    # Compute C^{-1} and (\d_a C) C^{-1} (\d_b C) C^{-1}, then take the trace
     # and multiply by 0.5
     invC = C.inv()
-    prod = daC*invC*daC*invC
+    prod = daC*invC*dbC*invC
     tr = prod.trace()
     final = 0.5*sp.simplify(tr)
 
     # Evaluate the numerical result using the function inputs
-    expression = sp.lambdify([gg, gn, nn, agg, agn, ann], final, 'numpy')
-    #expression = final.subs({gg: cgg, gn: cgn, nn: cnn, agg: acgg, agn: acgn, ann: acnn})
-    result = expression(cgg, cgn, cnn, acgg, acgn, acnn)
+    expression = sp.lambdify([gg, gn, nn, agg, agn, ann, bgg, bgn, bnn], final, 'numpy')
+    result = expression(cgg, cgn, cnn, acgg, acgn, acnn, bcgg, bcgn, bcnn)
     return result
 
 
@@ -82,7 +100,7 @@ def getFisherpermode(el1, el2, k, mu, Pgg, Pnn, Pgn, PLfid,
                      fnlfid = 0, cfid = 1, bgfid = 1, bnfid = 1, kappafid = 0):
     """Compute Fisher matrix per k mode.
 
-    Use Eq. (17) from draft, where
+    Use
         \frac{d P_{gg}}{d f_{NL}} = 2 ( b_g + \frac{c f_NL}{k^2} ) \frac{c}{k^2} P_{lin}
     and
         \frac{d P_{gn}}{d f_{NL}} = 2 \frac{b_n c}{k^2} P_{lin}
@@ -276,5 +294,80 @@ def getIntregratedFisher(K, FisherPerMode, kmin, kmax, V):
     else:
         function = scipy.interpolate.interp1d(K, FisherPerMode)
         result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
-        result = result[0]*V/(2.*np.pi)**2.
+        # result = result[0]*V/(2.*np.pi)**2.
+        result = result[0]*V/(2.*np.pi**2.)
+        # TODO: Shouldn't this be over 2(2pi)**2 ?
         return result
+
+def getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
+    """Compute full Fisher matrix for input derivatives and power spectra.
+
+    Parameters
+    ----------
+    listdersPA : ndarray
+        Array of P_A derivatives, with shape (n_parameters,n_k).
+    listdersPB : ndarray
+        Array of P_B derivatives, with shape (n_parameters,n_k).
+    listdersPAB : ndarray
+        Array of P_{AB} derivatives, with shape (n_parameters,n_k).
+    PA : ndarray
+        Array of P_A values, with shape (n_k).
+    PB : ndarray
+        Array of P_B values, with shape (n_k).
+    PAB : ndarray
+        Array of P_{AB} values, with shape (n_k).
+
+    Returns
+    -------
+    AllFisherElements : ndarray
+        Array of Fisher elements at each k, with shape
+        (n_parameters,n_parameters,n_k).
+    """
+    Nvars = len(listdersPA)
+    NKs = len(PA)
+    AllFisherElements = np.zeros((Nvars, Nvars, NKs))
+
+    # For each parameter pair, get Fisher element, and fill upper-triangular
+    # part of Fisher matrix
+    for i in range(Nvars):
+        for j in range(i, Nvars):
+            der_i_PA = listdersPA[i]
+            der_j_PA = listdersPA[j]
+            der_i_PB = listdersPB[i]
+            der_j_PB = listdersPB[j]
+            der_i_PAB = listdersPAB[i]
+            der_j_PAB = listdersPAB[j]
+            fisherpermode_i_j = getcompleteFisher(PA, PAB, PB,
+                                    der_i_PA, der_i_PAB, der_i_PB,
+                                    der_j_PA, der_j_PAB, der_j_PB)
+            AllFisherElements[i, j] = fisherpermode_i_j
+
+    # For each k, form Fisher matrix by adding upper-triangular part
+    # to its transpose, and subtracting the diagonal to avoid double-counting
+    for k in range(NKs):
+        M = AllFisherElements[:, :, k]
+        AllFisherElements[:, :, k] = (M+M.T-np.diag(np.diag(M)))
+    return AllFisherElements
+
+def getMarginalizedCov(K, V, kmin, kmax, listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
+    """TODO: document this...
+    """
+    Nvars = len(listdersPA)
+    Ks = np.linspace(kmin, kmax/1.5, num = 20)
+    NKs = len(Ks)
+    AllFisherElements = getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB)
+    mat = np.zeros((Nvars, Nvars, NKs))
+    for i in range(Nvars):
+        for j in range(i, Nvars):
+            temp = []
+            for k_minimum in Ks:
+                temp += [getIntregratedFisher(K, AllFisherElements[i, j], k_minimum, kmax, V)]
+            mat[i, j] = np.array(temp)
+
+    MarginalizedCov = mat.copy()
+    for k in range(NKs):
+        M = mat[:, :, k]
+        mat[:, :, k] = (M+M.T-np.diag(np.diag(M)))
+        M = mat[:, :, k]
+        MarginalizedCov[:, :, k] = np.linalg.inv(M)
+    return MarginalizedCov

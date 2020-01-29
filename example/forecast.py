@@ -61,6 +61,7 @@ dfnlPgg = dic['dfnlCgg']
 dfnlPgn = dic['dfnlCgn']
 dfnlPnn = dic['dfnlCnn']
 N = dic['Ngg']
+keys = dic['values']
 
 # Define k range, galaxy number density, shot power, and f_NL value
 K = dic['K']
@@ -78,8 +79,8 @@ fnlfid = values['fnlfid']
 fig, ax = plt.subplots( nrows=1, ncols=1 )
 #plt.xlim(0.01, 0.1)
 #plt.ylim(1e1, 1e8)
-plt.xlabel('$K$ $(h Mpc^{-1})$')
-plt.ylabel('$P$ $(h^{-3} Mpc^{3})$')
+plt.xlabel('$K$ $(Mpc^{-1})$')
+plt.ylabel('$P$ $(Mpc^{3})$')
 ax.plot(K, Pgg, label = 'Pgg for fnl='+str(fnlfid))
 ax.plot(K, Pnn, label = 'Pnn, n = growth est')
 ax.plot(K, Pgn, label = 'Pgn')
@@ -91,13 +92,56 @@ plt.close(fig)
 fig, ax = plt.subplots( nrows=1, ncols=1 )
 #plt.xlim(0.01, 0.1)
 #plt.ylim(1e1, 1e8)
-plt.xlabel('$K$ $(h Mpc^{-1})$')
-plt.ylabel('$P$ $(h^{-3} Mpc^{3})$')
+plt.xlabel('$K$ $(Mpc^{-1})$')
+plt.ylabel('$P$ $(Mpc^{3})$')
 ax.plot(K, K*0+shot, label = 'Shot Noise')
 ax.plot(K, N, label = 'Nnn, n = growth est')
 ax.plot(K, P_L, label = 'P Linear')
 ax.legend(loc = 'best', prop = {'size': 6})
 fig.savefig(output+'signal_noise_powers_forecast_fid_fnl'+str(fnlfid)+'.png', dpi = 300)
+plt.close(fig)
+
+minkrec = values['minkrec']
+maxkrec = values['maxkrec']
+
+alpha = 42328969.6526119
+deltak = maxkrec-minkrec
+deltaV = 4*np.pi/3*(maxkrec**3.-minkrec**3.)
+
+somma = 0.
+somma_fnl = 0.
+somma_other = 0.
+
+color = {'g': 'red', 's': 'blue', 't': 'green', 'phiphi': 'black', 'b01': 'orange', 'b02': 'yellow', 'b11': 'cyan'}
+
+fig, ax = plt.subplots( nrows = 1, ncols = 1 )
+plt.rc('font', size = 8)
+plt.title('Biases induced in the mean field reconstruction case of $f_{nl}=$'+str(fnl)+', $nbar = $'+str(nbar)+ ' $b_g=$'+str(bgfid) )
+plt.xlabel('$K$ $(Mpc^{-1})$')
+plt.ylabel('$Bias$')
+for a in keys.astype(str):
+    factor = 1.
+    sign = ''
+    if a in np.array(['s', 'b01', 'b02']):
+        factor = -1.
+        sign = '-'
+    somma += bgfid*N/dic['N'+a+'g']*dic['k'+a]
+    if a in np.array(['phiphi', 'b01', 'b02', 'b11']):
+        somma_fnl += bgfid*N/dic['N'+a+'g']*dic['k'+a]
+    elif a in np.array(['g', 's', 't']):
+        somma_other += bgfid*N/dic['N'+a+'g']*dic['k'+a]
+    ax.loglog(K, factor*bgfid*N/dic['N'+a+'g']*dic['k'+a], color = color[a], label = sign +a +' term')
+
+ax.loglog(K, somma, label = 'Biases Sum')
+ax.loglog(K, somma_fnl, label = 'fnl Biases Sum')
+intergration = 0.67*0.785278
+ax.loglog(K, K*0.+bgfid*dic['kb01']*4*np.pi*7/10*(1/alpha)*(deltak/deltaV+intergration), ls = '--', color = color['b01'], label = 'Analytic Approx b01')
+ax.loglog(K, bgfid*dic['kphiphi']*7./5.*1/M, ls = '--', color = color['phiphi'], label = 'Analytic Approx phiphi')
+ax.loglog(K, bgfid*dic['kb11']*7./10.*(1/M+4*np.pi/deltaV*1/alpha*deltak), ls = '--', color = color['b11'], label = 'Analytic Approx b11')
+ax.loglog(K, -bgfid*dic['kb02']*14./5.*2*np.pi*1./alpha*(1/deltaV)*1/M*intergration, color = color['b02'], ls = '--', label = 'Analytic Approx b02' )
+ax.loglog(K, bgfid*dic['derbfnllargescales']*fnl, color = 'pink', label = '$f_{nl}$ signal in the galaxy field on large scales')
+ax.legend(loc = 'best', prop = {'size': 6})
+fig.savefig(output+'biases_forecast_fid_fnl'+str(fnlfid)+'.png', dpi = 300)
 plt.close(fig)
 
 
@@ -109,37 +153,33 @@ plt.close(fig)
 keyfnl = 'fnl'
 el1, el2 = keyfnl, keyfnl
 
-# Some alternate forecasts
-'''
-mu = 0 # our results do not depend on mu
-#forecast0 = fore.getFisherpermodefnlfid0(el1, el2, k = K, mu = mu,
-                Pgg = Pgg, Pnn = Pnn, Pgn = Pgn,
-                cfid = cfid, bgfid = bgfid, bnfid = bnfid, kappafid = kappafid)
-forecast = fore.getFisherpermode(el1, el2, k = K, mu = mu,
-                Pgg = Pgg, Pnn = Pnn, Pgn = Pgn, PLfid = P_L,
-                fnlfid = fnlfid, cfid = cfid, bgfid = bgfid, bnfid = bnfid, kappafid = kappafid)
-forecastgg = fore.getFisherpermodeggonly(el1, el2, k = K, mu = mu,
-                Pgg = Pgg, PLfid = P_L,
-                fnlfid = fnlfid, cfid = cfid, bgfid = bgfid)
-'''
-
 # Define more parameters needed for forecasts
-PL = P_L
+# PL = P_L
 bg = dic['bg']
 M = dic['M']
 betaf = dic['betaf']
 fnl = dic['fnl']
-kappafid = 1.
+# kappafid = 1.
 
 # Linear growth factor during matter domination
 # TODO: change to full growth factor
-def D(y):
-    return 1/(1+y)
+# def D(y):
+#     return 1/(1+y)
 
 # Redshift for forecasts
 z = 0.
 
-#bn = 0.19
+fig, ax = plt.subplots( nrows = 1, ncols = 1 )
+plt.rc('font', size = 8)
+plt.title('Biases induced in the mean field reconstruction case of $f_{nl}=$'+str(fnl)+', $nbar = $'+str(nbar)+ ' $b_g=$'+str(bgfid) )
+plt.xlabel('$K$ $(Mpc^{-1})$')
+plt.ylabel('$Bias$')
+ax.loglog(K, abs(dic['derbfnllargescales']/bgfid**2.-somma_fnl/somma_other))
+ax.legend(loc = 'best', prop = {'size': 6})
+fig.savefig(output+'contamination_difference_forecast_fid_fnl'+str(fnlfid)+'.png', dpi = 300)
+plt.close(fig)
+
+
 
 # Compute Fisher element for f_NL, including reconstructed field
 forecast = fore.getcompleteFisher(cgg = Pgg, cgn = Pgn, cnn = Pnn,
@@ -153,9 +193,7 @@ forecastgg = fore.getcompleteFisher(cgg = Pgg, cgn = 1.e-4, cnn = 1.e-4,
 
 # Cross-correlation coefficient between g and n fields
 r = Pgn/np.sqrt(Pgg*Pnn)
-#dfnlPgn = 0.
-#dfnlPgg = 0.
-#r = 0.*K
+print(r)
 
 
 # Alternative versions of forecasts
@@ -165,20 +203,20 @@ f = faa(r = r, cgg = Pgg, cgn = Pgn, cnn = Pnn,
 
 forecast = f.copy()
 
-f = faa(r = 0, cgg = Pgg, cgn = Pgn, cnn = Pnn,
+f = faa(r = 0*Pgg, cgg = Pgg, cgn = Pgn, cnn = Pnn,
         dercgg = dfnlPgg, dercgn = 0., dercnn = 0.)
-#forecastgg = f.copy()
 
 # Compute unmarginalized errorbars on f_NL from Fisher elements
 errorgg = forecastgg**-0.5
 error = forecast**-0.5
+
 
 # Now, compute Fisher error integrated over all k
 print('Integrated Fisher Error')
 
 # Compute comoving survey volume based on k_min
 Kminforvol = np.min(K)
-V = (2.*np.pi)**3./Kminforvol**3.
+V = (np.pi)**3./Kminforvol**3.
 
 FisherPerMode = forecast
 FisherPerModegg = forecastgg
@@ -203,8 +241,8 @@ for Kmin in Ks:
 # TODO: which V is correct here?
 h = 0.67
 V = (2*np.pi)**3/kmin**3.#h**3*100*10**9
-V = (np.pi)**3/kmin**3/2.
-print('Volume, ', ((2*np.pi)**3/(kmin*h*1e3)**3.))
+V = (np.pi)**3/kmin**3
+print('Volume, ', (V/1e9))
 
 # For each k_min, compute integrated Fisher matrix, both with and without
 # reconstructed field included, also varying V with k_min
@@ -249,8 +287,10 @@ ax1.plot(K, r, label = 'Corr, fnl='+str(fnlfid))
 ax1.legend(loc = 'best', prop = {'size': 6})
 
 
+
 # Plot integrated Fisher elements (with varying V) as function of k_min
-ax2.set_xlabel('$K_{min}$ ($h$Mpc$^{-1}$)')
+# ax2.set_xlabel('$K_{min}$ ($h$Mpc$^{-1}$)')
+ax2.set_xlabel('$K_{min}$ (Mpc$^{-1}$)')
 ax2.set_ylabel('$ Integrated \sigma(f_{nl}) $')
 ax2.loglog(Ks, IntegratedFishVol,
             label = 'Integrated $\sigma(fnl = $'+str(fnlfid)
@@ -262,7 +302,8 @@ ax2.legend(loc = 'best', prop = {'size': 6})
 
 # Plot ratio of g+n and g-only integrated Fisher elements (with fixed V)
 # as function of k_min
-ax4.set_xlabel('$K_{min}$ ($h$Mpc$^{-1}$)')
+# ax4.set_xlabel('$K_{min}$ ($h$Mpc$^{-1}$)')
+ax4.set_xlabel('$K_{min}$ (Mpc$^{-1}$)')
 ax4.set_ylabel('$Fraction$')
 ax4.plot(Ks, Ks*0.+1.)
 ax4.plot(Ks, IntegratedFish/IntegratedFishgg,
