@@ -11,7 +11,6 @@ import functools
 from mpmath import mp
 import vegas
 
-
 class vectorize(np.vectorize):
     """Vectorizes a function.
     """
@@ -36,9 +35,8 @@ class Estimator(object):
             Array of signal power spectrum values (for numerator of
             quadratic estimator filter).
         """
-
-        self.thP = interp1d(tot_k, Plin)
-        self.P = interp1d(tot_k, tot_power)
+        self.thP = interp1d(tot_k, Plin)#This is for the Numerator
+        self.P = interp1d(tot_k, tot_power)#Goes into the Denominator of the Filter
 
         self._F = {}
         self._Ffunc = {}
@@ -49,9 +47,7 @@ class Estimator(object):
         self._exprfunc = {}
 
         self.keys = []
-
         return None
-
 
     def memoize(func):
         """Memoize a function (not currently used anywhere).
@@ -152,15 +148,12 @@ class Estimator(object):
         result: float
             Value of f.
         """
-
-        # Norm of K-q vector
         modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
 
-        # mu for K dot K-q
         mu_p = K**2.-q*K*mu
         mu_p /= (K*modK_q)
 
-        Fkernel = self._Ffunc[a]
+        Fkernel = self._Ffunc[a]#sp.lambdify([self.q1, self.q2, self.mu], self._F[a], 'numpy')
 
         result = Fkernel(q, K, -mu)*self.thP(q)+Fkernel(modK_q, K, -mu_p)*self.thP(modK_q)
         result *= 2
@@ -305,7 +298,6 @@ class Estimator(object):
            result /= (2*self.P(q)*self.P(modK_q))
 
            return result
-
         return _integrand
 
 
@@ -349,8 +341,8 @@ class Estimator(object):
            return result
         return _integrand
 
-    #for int g_a * function, where g_a is the weight
-    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a):
+
+    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
         """Construct the integrand for an N_{ab} integral, in Vegas format.
 
         Specifically, given functions f_1(q), f_2(|vec{|K-q|}|), and f_a(q,K,mu),
@@ -391,8 +383,8 @@ class Estimator(object):
            return result
         return _integrand
 
-    #for int g_a * function, where g_a is the weight
-    def _double_outer_integral_vegas_for_g(self, function, f, K, mu_sign, mu_sign_prime, a):
+
+    def _double_outer_integral_vegas_for_g(self, function, f, K, mu_sign, mu_sign_prime, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
         """Construct the integrand for double N_{ab} integral, in Vegas format.
 
         Specifically, given functions f(q), and f_a(q,K,mu),
@@ -560,8 +552,7 @@ class Estimator(object):
 
         for a, b in listKeys:
             N = self.N(a, b, K, minq, maxq, vegas_mode)
-            retList[a+","+b]= N
-            #.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
+            retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
 
         for a, b in listKeys:
             retList[b+","+a] = np.array(retList[a+","+b])

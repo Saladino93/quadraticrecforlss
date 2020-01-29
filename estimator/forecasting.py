@@ -26,6 +26,13 @@ def D(z):
     return 1./(1.+z)
 
 
+'''
+b bias parameter on large scales
+fnl fnl parameter on large scales
+func function multiplying fnl
+nbar number density of tracers
+Pnl non linear power spectrum on large scales (approx Plinear on large scales)
+'''
 def definepowermodel(b, fnl, func, nbar, Pnl):
     return 0
 
@@ -97,7 +104,7 @@ def getcompleteFisher(cgg, cgn, cnn, acgg, acgn, acnn,
 
 
 def getFisherpermode(el1, el2, k, mu, Pgg, Pnn, Pgn, PLfid,
-                     fnlfid = 0, cfid = 1, bgfid = 1, bnfid = 1, kappafid = 0):
+                    fnlfid = 0, cfid = 1, bgfid = 1, bnfid = 1, kappafid = 0):
     """Compute Fisher matrix per k mode.
 
     Use
@@ -212,8 +219,7 @@ def getFisherpermodeggonly(el1, el2, k, mu, Pgg, PLfid, fnlfid = 0, cfid = 1, bg
 
 #check code
 #this is for fnl = 0 and Pgg signal >> Pgg noise
-def getFisherpermodefnlfid0(el1, el2, k, mu, Pgg, Pnn, Pgn,
-                            cfid = 1, bgfid = 1, bnfid = 1, kappafid = 0):
+def getFisherpermodefnlfid0(el1, el2, k, mu, Pgg, Pnn, Pgn, cfid = 1, bgfid = 1, bnfid = 1, kappafid = 0):
     """Compute Fisher matrix per k mode, for f_NL=0 and signal-dominated P_gg.
 
     See draft for expression. TODO: Is this expression self-consistent?
@@ -294,9 +300,8 @@ def getIntregratedFisher(K, FisherPerMode, kmin, kmax, V):
     else:
         function = scipy.interpolate.interp1d(K, FisherPerMode)
         result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
-        # result = result[0]*V/(2.*np.pi)**2.
         result = result[0]*V/(2.*np.pi**2.)
-        # TODO: Shouldn't this be over 2(2pi)**2 ?
+        # TODO: Shouldn't the denominator be 2(2pi)**2 ?
         return result
 
 def getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
@@ -338,8 +343,8 @@ def getAllFisherElements(listdersPA, listdersPB, listdersPAB, PA, PB, PAB):
             der_i_PAB = listdersPAB[i]
             der_j_PAB = listdersPAB[j]
             fisherpermode_i_j = getcompleteFisher(PA, PAB, PB,
-                                    der_i_PA, der_i_PAB, der_i_PB,
-                                    der_j_PA, der_j_PAB, der_j_PB)
+                                                  der_i_PA, der_i_PAB, der_i_PB,
+                                                  der_j_PA, der_j_PAB, der_j_PB)
             AllFisherElements[i, j] = fisherpermode_i_j
 
     # For each k, form Fisher matrix by adding upper-triangular part
