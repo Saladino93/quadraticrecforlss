@@ -90,10 +90,23 @@ class Forecaster(expression):
         return tot
 
     def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix):
-        invC = covariance_matrix.inv()
+        ##quick fix till i figure how i can do inv with all these vars as sympy gets stuck
+        ##maybe just define general matrix and then subs values
+        ##or calculate F directly on numbers!
+        if covariance_matrix.shape == (2, 2):
+            detC = covariance_matrix[0, 0]*covariance_matrix[1, 1]-covariance_matrix[0, 1]*covariance_matrix[1, 0]
+            temp = sp.zeros(*covariance_matrix.shape)
+            temp[0, 0] = covariance_matrix[1, 1]
+            temp[0, 1] = -covariance_matrix[0, 1]
+            temp[1, 0] = -covariance_matrix[1, 0]
+            temp[1, 1] = covariance_matrix[0, 0]
+            invC = temp/detC
+        else:
+            invC = covariance_matrix.inv()
+ 
         prod = dera_covariance_matrix*invC*derb_covariance_matrix*invC
         tr = prod.trace()
-        final = 0.5*sp.simplify(tr)
+        final = 0.5*tr #0.5*sp.simplify(tr)
         return final 
 
 
