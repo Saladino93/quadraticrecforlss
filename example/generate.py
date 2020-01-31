@@ -47,6 +47,8 @@ direc = values['name']
 base_dir = values['file_config']['base_dir']
 data_dir = values['file_config']['data_dir']
 
+dic_name = values['file_config']['dic_name']
+
 direc = base_dir+direc+'/'
 
 #################
@@ -113,6 +115,7 @@ b20 = float(b20)
 
 betaf = 2.*deltac*(b10-1.)
 
+
 # If nonlinear bias values aren't specified, use theory predictions
 if bs2 == '':
    print('Using theory value for bs2!')
@@ -178,21 +181,20 @@ est = es.Estimator(K, Ptot, Plin)
 
 #this object is using sympy to define the different modecoupling kernels
 
-# TODO: Check these with Simon's derivations
-# F_g = 5/7
-est.addF('g', 5./7.)
+# F_g = 17/21
+est.addF('g', 17./21.)
 # F_s = (1/2) * (q_2/q_1 + q_1/q_2) * \vec{q}_1\cdot\vec{q}_2 / (q_1 q_2)
 est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu)
-# F_t = (2/7) * (\vec{q}_1\cdot\vec{q}_2)^2 / (q_1^2 q_2^2)
-est.addF('t', (2./7.)*est.mu**2.)
+# F_t = (2/7) * [ (\vec{q}_1\cdot\vec{q}_2)^2 / (q_1^2 q_2^2) - 1/3 ]
+est.addF('t', (2./7.)*est.mu**2.-1./3.)
 # F_{11} = (1/2) * (1/M(q_1) + 1/M(q_2))
-est.addF('b11', 0.5*(1./M(est.q1)+1./M(est.q2)))
+est.addF('c11', 0.5*(1./M(est.q1)+1./M(est.q2)))
 # F_{01} = (1/2) * \vec{q}_1\cdot\vec{q}_2 / (q_1 q_2)
 #            * ( 1/(q_1^2 M(q_2)) + 1/(q_2^2 M(q_1)) )
-est.addF('b01', 0.5 * est.mu*est.q1*est.q2 \
+est.addF('c01', 0.5 * est.mu*est.q1*est.q2 \
                 * (1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))) )
 # F_{02} = 1 / (M(q_1) + M(q_2))
-est.addF('b02', (1./(M(est.q1)*M(est.q2))))
+est.addF('c02', (1./(M(est.q1)*M(est.q2))))
 # F_{\phi\phi} = M(|\vec{q}_1+\vec{q}_2|) / (M(q_1) M(q_2))
 est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
                     * (1./M(est.q1)) * (1./M(est.q2)) )
@@ -204,13 +206,34 @@ K_of_interest = np.arange(minkh, maxkh, 0.001)
 #Now calculate different noise curves and store them inside the object
 est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
 
-#Now calculate shot noise contributions to the bispectrum
+M = Mscipy(est.Krange)
+
+values = np.array(list(est.keys))
+
+listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+
+dic = {}
+
+dic['K'] = est.Krange
+
+for a, b in listKeys:
+    dic['N'+a+b] = est.getN(a, b)
+    dic['N'+b+a] = dic['N'+a+b]
+
+with open(direc+data_dir+dic_name, 'wb') as handle:
+    pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+print('Done')
+
+
 '''
+#Now calculate shot noise contributions to the bispectrum
 Schematically speaking
 int_q g_a*sum of terms
  g_a = N_a * f_a/(2*P*P)
 '''
 
+'''
 Ngg = est.getN('g', 'g')
 
 a = 'g'
@@ -254,108 +277,6 @@ sh_tris_3_b = (shotfactor_zeroPpower*Ngg)*(shotfactor_twoPpower*Ngg)*shot
 
 sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b
 
-'''
-z = values['z']
-nbar = values['ngal']
-
-fnl = values['fnlfid']
-
-a1 = values['a1']
-a2 = values['a2']
-
-Mhalo = values['Mhalo']
-
-b20 = values['b20']
-bs2 = values['bs2']
-
-betaf = 2.*deltac*(bg-1.)
-
-shot = 1/nbar
-Ptot = (bg+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
-Pnlinsign = (bg+(betaf*fnl*D(z))/Mscipy(K))**2.*Pnlin
-
-Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign)
-
-Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1.)
-
-'''
-
-#   c_g = b_1 + (7/5)*b_2 - (7/21)*b_{s^2}
-cg = b10 + 7/5.*b20 - 7/21.*bs2
-#   c_s = b_1
-cs = b10*1
-#   c_t = b_1 + (7/2)*b_{s^2}
-ct = b10 + 7/2.*bs2
-
-'''
-############ Begin Calculations
-
-vegas_mode = True
-
-if vegas_mode:
-    Ptot[K > maxkhrec] = np.inf
-    Pnlinsign[K > maxkhrec] = 0
-    Pnlinsign[K > minkhrec] = 0
-
-Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
-
-K_of_interest = np.arange(minkh, maxkh, 0.001)
-
-est = es.Estimator(K, Ptot, Plin)
-
-est.addF('g', 5./7.)
-est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu)
-est.addF('t', (2./7.)*est.mu**2.)
-est.addF('b11', 0.5*(1./M(est.q1)+1./M(est.q2)))
-est.addF('b01', 0.5*est.mu*est.q1*est.q2*(1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))))
-est.addF('b02', (1./(M(est.q1)*M(est.q2))))
-est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu))*(1./M(est.q1))*(1./M(est.q2)))
-
-a = 'g'
-mu_sign = 1.
-
-est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
-
-Ngg = est.getN('g', 'g')
-
-mu_sign = 1.
-
-shotfactor = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-
-shotfactor_id_id = shotfactor
-
-sh_bis_1 = shotfactor*Ngg*shot**2.
-
-sh_tris_1 = (shotfactor*Ngg)**2.*shot**3
-
-sh_bis_3 = Pnlinsign_scipy(K_of_interest)*shotfactor*Ngg*shot
-
-g_int = shotfactor*Ngg
-
-shotfactor = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-
-sh_bis_2 = shotfactor*Ngg*shot
-
-sh_tris_2 = shotfactor*Ngg*g_int*shot**2.
-
-g_int_p = shotfactor*Ngg
-
-sh_tris_3_a = g_int_p**2.*shot
-
-shot_noise_bispectrum = sh_bis_1+2*sh_bis_2+sh_bis_3
-
-shotfactor = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pnlinsign_scipy, vegas_mode = vegas_mode)
-
-sh_tris_3_b = shotfactor*Ngg*shot*g_int
-
-shotfactor = est.double_integrate_for_shot(a, K_of_interest, mu_sign, minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, vegas_mode = vegas_mode)
-sh_tris_4_a = shotfactor*Ngg**2.*shot**2.
-sh_tris_4_b = shotfactor_id_id**2*Ngg**2.*shot**2.*Pnlinsign_scipy(K_of_interest)
-
-shot_noise_trispectrum = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
-
-
-'''
 #######DICTIONARTY OF STUFF###########
 
 prefac = 1.
@@ -368,18 +289,16 @@ listKeys = list(itertools.combinations_with_replacement(list(term_labels), 2))
 
 dic = {}
 
-dic['Mhalo'] = mhalo
-
 dic['K'] = est.Krange
 
 for a, b in listKeys:
     dic['N'+a+b] = prefac**2.*est.getN(a, b)
     dic['N'+b+a] = dic['N'+a+b]
 
-# betaf = 2.*deltac*(bg-1.)
-# B = betaf
-# C = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(bg-1.))-2.*(bg-1.))
-# A = (2./a1)*(deltac*(b20-2*(a1+a2)*(bg-1.))-a1**2.*(bg-1.))+2.*deltac*(bg-1.)
+B = betaf
+C = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(bg-1.))-2.*(bg-1.))
+A = (2./a1)*(deltac*(b20-2*(a1+a2)*(bg-1.))-a1**2.*(bg-1.))+2.*deltac*(bg-1.)
+
 
 dic['minkh'] = minkh
 dic['maxkh'] = maxkh
@@ -449,3 +368,4 @@ with open(direc+'/data_dir/spectra.pickle', 'wb') as handle:
     pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 print('Done')
+'''
