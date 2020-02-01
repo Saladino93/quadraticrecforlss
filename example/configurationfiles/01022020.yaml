@@ -1,4 +1,4 @@
-name: '23012020'
+name: '01022020'
 force_creation: False
 file_config:
         base_dir: 'output/'
@@ -25,11 +25,11 @@ survey_config:
                 mhalo: 0.773
                 nhalo: 3e-4
                 biases: # if blank use a theory expression
-                        b10: 1
+                        b10: 1.6
                         b01: ''  
                         b11: ''
                         b02: ''
-                        b20: -0.5
+                        b20: -0.3
                         bs2: ''
         geometry:
                 volume: 100 #in units of Gpc^3
@@ -54,3 +54,8 @@ forecast_config:
                     xlabel: '$K$ $(h Mpc^{-1})$'
                     ylabel: '$\sigma_{f_nl}$'
                     output_name: 'error_'
+                    title_cov: 'Powers'
+                    xlabel_cov: '$K$ $(h Mpc^{-1})$'
+                    ylabel_cov: '$P$ $(h^3 Mpc^{-3})$'
+                    legend_cov: {'Plin': {'color': 'black', 'ls': '-'}, 'Pgg': {'color': 'green', 'ls': '-'}, 'Pgn': {'color': 'red', 'ls': '-'}, 'Pnn': {'color': 'blue', 'ls': '-'}, 'shot': {'color': 'yellow', 'ls': '--'}, 'Ngg': {'color': 'orange', 'ls': '--'}} 
+                    output_name_cov: 'power_'
