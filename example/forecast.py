@@ -73,8 +73,6 @@ var_values = {}
 for vv in variables_list:
     var_values[vv] = dic[vv]
 
-print(var_values)
-
 ###### FORECAST ######
 
 forecast = forecasting.Forecaster(K, *variables_list)
@@ -135,8 +133,13 @@ var_values['new_bias'] = 10000
 
 forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
 
+########print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
+
 #can also loop over all other variables of fisher list
 #could put a dictionary for labels
+error_versions = {'a': {'marginalized': False, 'integrated': True}, 'b': {'marginalized': False, 'integrated': True}}
 for v in variables_of_interest:
-    forecast.plot_forecast(v, marginalized = False, integrated = False, title = title, xlabel = xlabel, ylabel = ylabel, output_name = direc+pics_dir+output_name+v+'.png')
+    forecast.plot_forecast(v, error_versions, kmin = 0.005, kmax = 0.03, volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
+
+forecast.get_integrated_error(v, )
     

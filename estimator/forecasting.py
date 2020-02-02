@@ -6,6 +6,12 @@ import itertools
 
 import matplotlib.pyplot as plt
 
+import scipy
+
+import scipy.interpolate
+
+import scipy.integrate
+
 #what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
 
 class expression():
@@ -265,25 +271,83 @@ class Forecaster(expression):
         else:
             self.fisher = fab
 
+
+    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100):
+                
+        error = self.get_non_marginalized_error_per_mode(variable)            
+
+        K = self.K
+
+        if integrated:
+
+            Ks = np.arange(kmin, kmax, 0.001)
+
+            shape = self.fisher_numpy.shape
+            f_int = np.zeros((shape[0], shape[1], len(Ks)))
+            cov_int_marg = f_int.copy()
+            lista = self.fisher_list
+            combs = list(itertools.combinations_with_replacement(list(lista), 2))
+
+            for a, b in combs:
+                i, j = lista.index(a), lista.index(b)
+                f = self.fisher_numpy[i, j, :]
+
+                IntegratedFish = np.array([])
+
+                for Kmin in Ks:
+                    error = self.getIntregratedFisher(K, f, Kmin, kmax, volume)
+                    IntegratedFish = np.append(IntegratedFish, error)
+            
+                f_int[i, j, :] = IntegratedFish
+
+            for i in range(f_int.shape[-1]):
+                matrix = f_int[..., i]
+                cov_int_marg[..., i] = np.linalg.inv(matrix)
+            
+
+            ind1, ind2 = lista.index(variable), lista.index(variable)
+            
+            if not marginalized:
+                error = f_int[ind1, ind2, :]
+            else:
+                error = cov_int_marg[ind1, ind2, :] 
+ 
+
+            K = Ks
+            error = error**-0.5
+
+        return K, error
    
-    def get_non_marginalized_error(self, variable):
+    def get_non_marginalized_error_per_mode(self, variable):
         lista = self.fisher_list
         i, j = lista.index(variable), lista.index(variable) 
         error = (self.fisher_numpy[i, j])**-0.5
         return error       
 
 
-    def get_marginalized_error(self, variable):
+    def get_marginalized_error_per_mode(self, variable):
         lista = self.fisher_list
-        i, j = lista.index(variable), lista.index(variable)
-        error = (self.fisher_numpy[i, j])**-0.5
+        
+        inverse_fisher_numpy = self.fisher_numpy.copy()
+
+        def is_pos_def(x):
+            return np.all(np.linalg.eigvals(x) > 0)
+
+        for i in range(self.fisher_numpy.shape[-1]):
+            matrix = self.fisher_numpy[..., i]
+            print(matrix)
+            print(is_pos_def(matrix))
+            matrix_inv = np.linalg.inv(matrix)
+            inverse_fisher_numpy[..., i] = matrix_inv
+  
+        i, j = lista.index(variable), lista.index(variable)         
+        error = (self.inverse_fisher_numpy[i, j])**-0.5
         return error 
 
 
-    def get_integrated_error(self, variable, marginalized = False, kmin = 0.005, kmax = 0.05, volume = 100):
-        if not marginalized:
-            getIntregratedFisher(self.K, self.get_non_marginalized_error(variable), kmin, kmax, volume)     
-        return 0.
+    def get_integrated_error(self, fisher_vec, kmin = 0.005, kmax = 0.05, volume = 100):
+        result = self.getIntregratedFisher(self.K, fisher_vec, kmin, kmax, volume)     
+        return result
 
     def getIntregratedFisher(self, K, FisherPerMode, kmin, kmax, V):
         if (kmin<np.min(K)) or (kmax>np.max(K)):
@@ -295,14 +359,20 @@ class Forecaster(expression):
             result = result[0]*V/(2.*np.pi**2.)
             return result
 
-    def plot_forecast(self, variable, marginalized = False, integrated = False, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '\sigma', output_name = ''):
+    def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05, volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '\sigma', xscale = 'linear', yscale = 'log', output_name = ''):
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
-        if not marginalized:
-            error = self.get_non_marginalized_error(variable)
-        plt.plot(self.K, error)
+        plt.xscale(xscale)
+        plt.yscale(yscale)
+        for label, value in error_versions.items():
+            K, error = self.get_error(variable, value['marginalized'], value['integrated'], kmin, kmax, volume) 
+            label = ''
+            for l, v in value.items():
+                if v:
+                    label += l+' '
+            plt.plot(K, error, label = label)
         ax.legend(loc = 'best', prop = {'size': 6})
         fig.savefig(output_name, dpi = 300)
         plt.close(fig)
