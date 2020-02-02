@@ -274,9 +274,11 @@ class Forecaster(expression):
 
     def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100):
                 
+        volume *= 10**9
+
         error = self.get_non_marginalized_error_per_mode(variable)            
 
-        K = self.K
+        K = self.K.copy()
 
         if integrated:
 
@@ -324,7 +326,8 @@ class Forecaster(expression):
         error = (self.fisher_numpy[i, j])**-0.5
         return error       
 
-
+    ###NOTE!
+    ###REWRITE ROUTINE IN CLEANER WAY, CHECK POS DEF OF INTEGRATED FISHER, AND PER MODE WHAT HAPPENS
     def get_marginalized_error_per_mode(self, variable):
         lista = self.fisher_list
         
