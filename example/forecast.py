@@ -139,5 +139,5 @@ forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values 
 #could put a dictionary for labels
 error_versions = {'a': {'marginalized': False, 'integrated': False}, 'b': {'marginalized': False, 'integrated': True}}
 for v in variables_of_interest:
-    forecast.plot_forecast(v, error_versions, kmin = 0.005, kmax = 0.03, volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
+    forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
 
