@@ -58,14 +58,14 @@ print('Values are, ', values)
 direc = values['name']
 base_dir = values['file_config']['base_dir']
 data_dir = values['file_config']['data_dir']
-pics = values['file_config']['pics']
+pics_dir = values['file_config']['pics_dir']
 
 direc = base_dir+direc+'/'
 
 if not os.path.exists(direc):
     os.makedirs(direc)
     os.makedirs(direc+data_dir)
-    os.makedirs(direc+pics)
+    os.makedirs(direc+pics_dir)
 else:
     print('Baseline name already exists!')
     sys.exit()

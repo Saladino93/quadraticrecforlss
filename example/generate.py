@@ -85,7 +85,7 @@ Pnlin = Pnlin[select]
 #################################
 
 # Fetch some values from the input dict
-print('Values are, ', values)
+# print('Values are, ', values)
 
 minkh = values['analysis_config']['mink_analysis']
 maxkh = values['analysis_config']['maxk_analysis']
@@ -116,6 +116,12 @@ b20 = float(b20)
 betaf = 2.*deltac*(b10-1.)
 
 
+##### LATER FOR FORECAST
+
+variables_list = values['forecast_config']['variables_list']
+
+
+
 # If nonlinear bias values aren't specified, use theory predictions
 if bs2 == '':
    print('Using theory value for bs2!')
@@ -140,7 +146,6 @@ if b02 == '':
    b02 = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(b10-1.))-2.*(b10-1.))
 else:
    b02 = float(b02)
-
 
 ''' OTHER TRACER PROPERTIES '''
 
@@ -216,9 +221,18 @@ dic = {}
 
 dic['K'] = est.Krange
 
+Plin = np.interp(est.Krange, K, Plin)
+
 for a, b in listKeys:
     dic['N'+a+b] = est.getN(a, b)
     dic['N'+b+a] = dic['N'+a+b]
+
+
+new_bias = 1000 ##to be decided if I have to use sympy also here
+
+for vv in variables_list:
+    if 'N' not in vv:
+        dic[vv] = globals()[vv]
 
 with open(direc+data_dir+dic_name, 'wb') as handle:
     pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)

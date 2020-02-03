@@ -2,10 +2,16 @@
 """
 
 import sympy as sp
-
 import numpy as np
-
 import itertools
+
+import matplotlib.pyplot as plt
+
+import scipy
+
+import scipy.interpolate
+
+import scipy.integrate
 
 #what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
 
@@ -56,19 +62,42 @@ class expression():
 
 
 class Forecaster(expression):
+    """Class that computes Fisher matrix and related quantities.
+    """
 
-    def __init__(self, *args):
+    def __init__(self, K, *args):
+        """
+        Parameters
+        ----------
+        args : list
+            List of variables we ultimately want to forecast for.
+        """
+        self.K = K
+        self.length_K = len(K)
         expression.__init__(self, *args)
 
     def add_cov_matrix(self, covariance_matrix_dict):
+        """Take covariance matrix from input file and store in convenient form.
+
+        Parameters
+        ----------
+        covariance_matrix_dict : dictionary
+            Dictionary defining auto and cross spectra that make up covariance
+            matrix (e.g. {'Pgg' : ..., 'Pgn' : ..., 'Pnn' : ...}). Must have
+            N(N+1)/2 keys for integer N.
+        """
         elements = []
         expressions_list = []
+
+        # Store expressions from covariance_dict
         for key, value in covariance_matrix_dict.items():
             self.add_expression(key, value)
             expressions_list += [self.get_expression(key)]
             elements += [key]
+        # Store names of expressions
         self.covmatrix_str = elements
 
+        # Assuming dict has N(N+1)/2 elements, extract N and make NxN matrix
         p = len(self.covmatrix_str)
         matrix_dim = int((-1+np.sqrt(1+8*p))/2)
         self.matrix_dim = matrix_dim
@@ -76,6 +105,7 @@ class Forecaster(expression):
         shape = [matrix_dim, matrix_dim]
         covariance = sp.zeros(*shape)
 
+        # Fill in covariance matrix elements
         for i in range(matrix_dim):
             covariance[i, :] = [expressions_list[i:matrix_dim+i]]
         #print(expressions_list)
@@ -85,6 +115,49 @@ class Forecaster(expression):
         #print(covariance)
         self.cov_matrix = covariance
 
+
+    def plot_cov(self, var_values, legend = {'Plin': 'black'}, title = 'Covs', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '$P$ $(h^3 Mpc^{-3})$', output_name = ''):
+
+        K = self.K
+
+        all_vars = self.vars
+        numpy_covariance_matrix = sp.lambdify(all_vars, self.cov_matrix, 'numpy')
+        temp_cov = numpy_covariance_matrix(**var_values)
+
+        ##quicky, but it should be done like above
+
+        spectra = {}
+
+        gg = temp_cov[0, 0, :]
+        nn = temp_cov[1, 1, :]
+        gn = temp_cov[0, 1, :]
+
+        spectra['Pgg'] = gg
+        spectra['Pgn'] = gn
+        spectra['Pnn'] = nn
+
+        if 'Plin' in legend.keys():
+            Plin = var_values['Plin']
+            spectra['Plin'] = Plin
+
+        spectra['shot'] = K*0.+1./var_values['nhalo']
+        spectra['Ngg'] = var_values['Ngg']
+
+
+        fig, ax = plt.subplots(nrows = 1, ncols = 1)
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+
+        for v in legend.keys():
+            plt.plot(K, spectra[v], label = v, color = legend[v]['color'], ls = legend[v]['ls'])
+
+
+        ax.legend(loc = 'best', prop = {'size': 6})
+        fig.savefig(output_name, dpi = 300)
+        plt.close(fig)
+
+
     def __fab__(self, cgg, dera_cgg, derb_cgg):
         A = dera_cgg/cgg
         B = derb_cgg/cgg
@@ -92,45 +165,102 @@ class Forecaster(expression):
         tot *= A*B
         return tot
 
-    def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix):
-        ##quick fix till i figure how i can do inv with all these vars as sympy gets stuck
-        ##maybe just define general matrix and then subs values
-        ##or calculate F directly on numbers!
-        if covariance_matrix.shape == (2, 2):
-            detC = covariance_matrix[0, 0]*covariance_matrix[1, 1]-covariance_matrix[0, 1]*covariance_matrix[1, 0]
-            temp = sp.zeros(*covariance_matrix.shape)
-            temp[0, 0] = covariance_matrix[1, 1]
-            temp[0, 1] = -covariance_matrix[0, 1]
-            temp[1, 0] = -covariance_matrix[1, 0]
-            temp[1, 1] = covariance_matrix[0, 0]
-            invC = temp/detC
-        else:
-            invC = covariance_matrix.inv()
+    def __get__inv(self):
+        return 0
 
-        prod = dera_covariance_matrix*invC*derb_covariance_matrix*invC
-        tr = prod.trace()
-        final = 0.5*tr #0.5*sp.simplify(tr)
+    def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix, numpify = False, var_values = None):
+        if numpify:
+            all_vars = self.vars
+
+            po = sp.symbols('po')
+            if po not in all_vars:
+                all_vars += [po]
+                var_values['po'] = np.ones(self.length_K)
+
+            numpy_covariance_matrix = sp.lambdify(all_vars, covariance_matrix, 'numpy')
+            numpy_dera_covariance_matrix = sp.lambdify(all_vars, dera_covariance_matrix+po*sp.ones(*covariance_matrix.shape), 'numpy') #sometimes you could have 0. or constant derivative from sympy --> do not vectorize
+            numpy_derb_covariance_matrix = sp.lambdify(all_vars, derb_covariance_matrix+po*sp.ones(*covariance_matrix.shape), 'numpy')
+
+            #numpy_covariance_matrix = np.vectorize(numpy_covariance_matrix)
+            #numpy_dera_covariance_matrix= np.vectorize(numpy_dera_covariance_matrix)
+            #numpy_derb_covariance_matrix = np.vectorize(numpy_derb_covariance_matrix)
+
+            '''
+            @np.vectorize
+            def get_covmat(b10 = 1, b01 = 1, b11 = 1, b20 = 1, bs2 = 1, fnl = 1, nhalo = 1, Pnlin = np.ones(3), M = np.ones(3), deltac = 1, a1 = 1, a2 = 1, new_bias = 1, Nphiphig =  np.ones(3), Ngt = np.ones(3), Ngs = np.ones(3), Ngg = np.ones(3), Nc02g = np.ones(3), Nc01g = np.ones(3), Nc11g = np.ones(3)):
+                return numpy_covariance_matrix(b10, b01, b11, b20, bs2, fnl, nhalo, Pnlin, M, deltac, a1, a2, new_bias, Nphiphig, Ngt, Ngs, Ngg, Nc02g, Nc01g, Nc11g)
+            '''
+
+            cov_mat = numpy_covariance_matrix(**var_values)
+            dera_cov_mat = numpy_dera_covariance_matrix(**var_values)
+            derb_cov_mat = numpy_derb_covariance_matrix(**var_values)
+
+            shape = cov_mat.shape
+
+            final = []
+
+            for i in range(shape[-1]):
+                cov = cov_mat[:, :, i]
+                dera_cov = dera_cov_mat[:, :, i]-var_values['po'][i]*1
+                derb_cov = derb_cov_mat[:, :, i]-var_values['po'][i]*1
+                invC = np.linalg.inv(cov)
+                prod = dera_cov@invC@derb_cov@invC
+                final += [0.5*np.matrix.trace(prod)]
+
+            final = np.array(final)
+        else:
+            #Sympy way, non numerical. Fastish for simple expressions. More complex expressions can take 'infinite' time.
+            #To be improved
+            ##quick fix till i figure how i can do inv with all these vars as sympy gets stuck
+            ##maybe just define general matrix and then subs values
+            ##or calculate F directly on numbers!
+            if covariance_matrix.shape == (2, 2):
+                detC = covariance_matrix[0, 0]*covariance_matrix[1, 1]-covariance_matrix[0, 1]*covariance_matrix[1, 0]
+                temp = sp.zeros(*covariance_matrix.shape)
+                temp[0, 0] = covariance_matrix[1, 1]
+                temp[0, 1] = -covariance_matrix[0, 1]
+                temp[1, 0] = -covariance_matrix[1, 0]
+                temp[1, 1] = covariance_matrix[0, 0]
+                invC = temp/detC
+            else:
+                invC = covariance_matrix.inv()
+
+            prod = dera_covariance_matrix*invC*derb_covariance_matrix*invC
+            tr = prod.trace()
+            final = 0.5*sp.simplify(tr)
+
         return final
 
-
     def get_fisher_matrix(self, variables_list = [], numpify = False, verbose = True):
+        """Get per-k Fisher matrix, both in symbolic form and as a matrix of numpy functions.
+
+        Parameters
+        ----------
+        variables_list : list, optional
+            List of variable names to include in Fisher matrix. If not specified,
+            everything in self.vars is used.
+        numpyify : bool, optional
+            Whether to generate numpy-function version of Fisher matrix (default: False).
+        verbose : bool, optional
+            Whether to print some status updates (default: True).
+        """
+
+        '''
+        for vv in var_values.keys():
+            try:
+                ll = len(var_values[vv])
+                if ll > 1:
+                    self.length_K = ll
+                break
+            except:
+                a = 1 #dummy operation
+        '''
 
         matrix_dim = self.matrix_dim
         shape = [matrix_dim, matrix_dim]
 
         for variable in self.vars:
-            der_cov = sp.zeros(1, matrix_dim**2)
-            for expression in self.covmatrix_str:
-                i = self.covmatrix_str.index(expression)
-                der_cov[0, i] = self.derivate(expression, variable, save_derivative = True)
-
-            der_cov = der_cov.reshape(*shape)
-
-            for i in range(matrix_dim):
-                for j in range(i, matrix_dim):
-                    der_cov[j, i] = der_cov[i, j]
-
-
+            der_cov = sp.diff(self.cov_matrix, variable)
             setattr(self, 'der'+str(variable)+'_matrix', der_cov)
 
         if variables_list == []:
@@ -143,13 +273,15 @@ class Forecaster(expression):
         if verbose:
             print('Using'+s+'parameters list:', lista)
 
+        self.fisher_list = lista
+
         combs = list(itertools.combinations_with_replacement(list(lista), 2))
 
         N = len(lista)
         shape = [N, N]
         fab = sp.zeros(*shape)
 
-        fab_numpy = {}
+        fab_numpy = np.zeros((N, N, self.length_K))
 
         if verbose:
             print('Calculating fisher matrix')
@@ -158,20 +290,125 @@ class Forecaster(expression):
             dera_cov = self.get_expression('der'+str(a)+'_matrix')
             derb_cov = self.get_expression('der'+str(b)+'_matrix')
             i, j = lista.index(a), lista.index(b)
-            fab[i, j] = self.__getF__(self.cov_matrix, dera_cov, derb_cov)
 
+            f = self.__getF__(self.cov_matrix, dera_cov, derb_cov, numpify, var_values)
             if numpify:
-                all_vars = self.vars
-                numpyified = sp.lambdify(all_vars, fab[i, j], 'numpy')
-                fab_numpy[str(a)+''+str(b)] = numpyified
-                fab_numpy[str(b)+''+str(a)] = numpyified
-            #i, j = lista.index(a), lista.index(b)
-            #fab[i, j] = self.__fab__(cgg, dera_cov, derb_cov)
+                fab_numpy[i, j, :] = f
+                fab_numpy[j, i, :] = f
+            else:
+                fab[i, j] = f
 
-        self.fisher = fab
-        self.fisher_numpy = fab_numpy
+        if numpify:
+            self.fisher = fab_numpy
+            self.fisher_numpy = fab_numpy
+        else:
+            self.fisher = fab
 
 
-    def get_non_marginalized_error(self, variable, **inputs):
-        error = (self.fisher_numpy[variable+variable](**inputs))**-0.5
+    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100):
+
+        volume *= 10**9
+
+        error = self.get_non_marginalized_error_per_mode(variable)
+
+        K = self.K.copy()
+
+        if integrated:
+
+            Ks = np.arange(kmin, kmax, 0.001)
+
+            shape = self.fisher_numpy.shape
+            f_int = np.zeros((shape[0], shape[1], len(Ks)))
+            cov_int_marg = f_int.copy()
+            lista = self.fisher_list
+            combs = list(itertools.combinations_with_replacement(list(lista), 2))
+
+            for a, b in combs:
+                i, j = lista.index(a), lista.index(b)
+                f = self.fisher_numpy[i, j, :]
+
+                IntegratedFish = np.array([])
+
+                for Kmin in Ks:
+                    error = self.getIntregratedFisher(K, f, Kmin, kmax, volume)
+                    IntegratedFish = np.append(IntegratedFish, error)
+
+                f_int[i, j, :] = IntegratedFish
+
+            for i in range(f_int.shape[-1]):
+                matrix = f_int[..., i]
+                cov_int_marg[..., i] = np.linalg.inv(matrix)
+
+
+            ind1, ind2 = lista.index(variable), lista.index(variable)
+
+            if not marginalized:
+                error = f_int[ind1, ind2, :]
+            else:
+                error = cov_int_marg[ind1, ind2, :]
+
+
+            K = Ks
+            error = error**-0.5
+
+        return K, error
+
+    def get_non_marginalized_error_per_mode(self, variable):
+        lista = self.fisher_list
+        i, j = lista.index(variable), lista.index(variable)
+        error = (self.fisher_numpy[i, j])**-0.5
         return error
+
+    ###NOTE!
+    ###REWRITE ROUTINE IN CLEANER WAY, CHECK POS DEF OF INTEGRATED FISHER, AND PER MODE WHAT HAPPENS
+    def get_marginalized_error_per_mode(self, variable):
+        lista = self.fisher_list
+
+        inverse_fisher_numpy = self.fisher_numpy.copy()
+
+        def is_pos_def(x):
+            return np.all(np.linalg.eigvals(x) > 0)
+
+        for i in range(self.fisher_numpy.shape[-1]):
+            matrix = self.fisher_numpy[..., i]
+            print(matrix)
+            print(is_pos_def(matrix))
+            matrix_inv = np.linalg.inv(matrix)
+            inverse_fisher_numpy[..., i] = matrix_inv
+
+        i, j = lista.index(variable), lista.index(variable)
+        error = (self.inverse_fisher_numpy[i, j])**-0.5
+        return error
+
+
+    def get_integrated_error(self, fisher_vec, kmin = 0.005, kmax = 0.05, volume = 100):
+        result = self.getIntregratedFisher(self.K, fisher_vec, kmin, kmax, volume)
+        return result
+
+    def getIntregratedFisher(self, K, FisherPerMode, kmin, kmax, V):
+        if (kmin<np.min(K)) or (kmax>np.max(K)):
+            print('Kmin(Kmax) should be higher(lower) than the minimum(maximum) of the K avaliable!')
+            return 0
+        else:
+            function = scipy.interpolate.interp1d(K, FisherPerMode)
+            result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
+            result = result[0]*V/(2.*np.pi**2.)
+            return result
+
+    def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05, volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '\sigma', xscale = 'linear', yscale = 'log', output_name = ''):
+        fig, ax = plt.subplots(nrows = 1, ncols = 1)
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.xscale(xscale)
+        plt.yscale(yscale)
+        for label, value in error_versions.items():
+            K, error = self.get_error(variable, value['marginalized'], value['integrated'], kmin, kmax, volume)
+            label = ''
+            for l, v in value.items():
+                if v:
+                    label += l+' '
+            plt.plot(K, error, label = label)
+        ax.legend(loc = 'best', prop = {'size': 6})
+        fig.savefig(output_name, dpi = 300)
+        plt.close(fig)

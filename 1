@@ -1,0 +1,205 @@
+import sympy as sp
+
+import numpy as np
+
+import itertools
+
+#what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
+
+class expression():
+    # args here is just the list of variables used 
+    def __init__(self, *args):
+        var_list = []
+        var_list_names = []
+        ns = {}
+        for a in args:
+            symb = sp.symbols(a)
+            setattr(self, a, symb)
+            ns[a] = symb
+            var_list += [symb]
+            var_list_names += [a]
+        self.vars = var_list
+        self.vars_names = var_list_names
+        self.ns = ns        
+
+    def add_extra_var(self, name, expression):
+        setattr(self, name, expression)
+
+    # similar to add_extra_var but logic of usage is different  
+    def add_expression(self, expression_name: str, expr):
+        setattr(self, expression_name, sp.sympify(expr, locals = self.ns))
+        
+    def __add__(self, other_object_expression):
+        return  
+
+    def get_expression(self, expression_name):
+        return getattr(self, expression_name)
+
+    def evaluate_expression(self, expression_name, **valuesdict):
+        expr = getattr(self, expression_name)
+        expr_numpy = sp.lambdify(self.vars, expr, 'numpy')
+        return expr_numpy(**valuesdict)
+
+    def derivate(self, expression_name, variable_of_derivation, save_derivative = False):
+        derivative = sp.diff(getattr(self, expression_name), variable_of_derivation) 
+        if save_derivative:
+            der_expression_name = 'der'+str(variable_of_derivation)+'_'+expression_name
+            setattr(self, der_expression_name, derivative)
+        return derivative
+
+    def change_expression(self, expression_name, new_expression_value):
+        setattr(self, expression_name, sp.sympify(new_expression_value, locals = self.ns))
+        return
+
+
+class Forecaster(expression):
+
+    def __init__(self, *args):
+        expression.__init__(self, *args)
+
+    def add_cov_matrix(self, covariance_matrix_dict, ):
+        elements = []
+        expressions_list = []
+        for key, value in covariance_matrix_dict.items():
+            self.add_expression(key, value)
+            expressions_list += [self.get_expression(key)]
+            elements += [key]
+        self.covmatrix_str = elements
+
+        p = len(self.covmatrix_str)
+        matrix_dim = int((-1+np.sqrt(1+8*p))/2)
+        self.matrix_dim = matrix_dim
+
+        shape = [matrix_dim, matrix_dim]
+        covariance = sp.zeros(*shape)
+
+        for i in range(matrix_dim):
+            covariance[i, :] = [expressions_list[i:matrix_dim+i]] 
+        #print(expressions_list) 
+        #print(covariance)
+        #symm = covariance+covariance.T
+        #covariance = sp.Matrix(matrix_dim, matrix_dim, lambda i, j: symm[i, j]/2 if i==j else symm[i, j])
+        #print(covariance) 
+        self.cov_matrix = covariance
+
+    def __fab__(self, cgg, dera_cgg, derb_cgg):
+        A = dera_cgg/cgg
+        B = derb_cgg/cgg
+        tot = 1./2.
+        tot *= A*B
+        return tot
+
+    def __get__inv(self):
+        return 0
+    def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix, numpify = False, var_values = None):
+        if numpify:
+                all_vars = self.vars
+                numpy_covariance_matrix = sp.lambdify(all_vars, covariance_matrix, 'numpy')
+                numpy_dera_covariance_matrix = sp.lambdify(all_vars, dera_covariance_matrix, 'numpy')
+                numpy_derb_covariance_matrix = sp.lambdify(all_vars, derb_covariance_matrix, 'numpy')
+                
+                '''
+                @np.vectorize 
+                def get_covmat(b10 = 1, b01 = 1, b11 = 1, b20 = 1, bs2 = 1, fnl = 1, nhalo = 1, Pnlin = np.ones(3), M = np.ones(3), deltac = 1, a1 = 1, a2 = 1, new_bias = 1, Nphiphig =  np.ones(3), Ngt = np.ones(3), Ngs = np.ones(3), Ngg = np.ones(3), Nc02g = np.ones(3), Nc01g = np.ones(3), Nc11g = np.ones(3)):
+                    return numpy_covariance_matrix(b10, b01, b11, b20, bs2, fnl, nhalo, Pnlin, M, deltac, a1, a2, new_bias, Nphiphig, Ngt, Ngs, Ngg, Nc02g, Nc01g, Nc11g)
+     
+                '''
+                print(numpy_covariance_matrix(**var_values).shape)
+                print(dera_covariance_matrix.shape)
+                print(numpy_dera_covariance_matrix(**var_values).shape)
+                cov_mat = numpy_covariance_matrix(**var_values)
+                dera_cov_mat = numpy_dera_covariance_matrix(**var_values)
+                derb_cov_mat = numpy_derb_covariance_matrix(**var_values)
+
+                shape = cov_mat.shape
+
+                for i in range(shape[-1]):
+                    cov = cov_mat[:, :, i]
+                    dera_cov = dera_cov_mat[:, :, i]
+                    derb_cov = derb_cov_mat[:, :, i]
+                    invC = np.linalg(cov)
+                    prod = dera_cov@invC@derb_cov@invC
+        else:
+                ##quick fix till i figure how i can do inv with all these vars as sympy gets stuck
+                ##maybe just define general matrix and then subs values
+                ##or calculate F directly on numbers!
+                if covariance_matrix.shape == (2, 2):
+                    detC = covariance_matrix[0, 0]*covariance_matrix[1, 1]-covariance_matrix[0, 1]*covariance_matrix[1, 0]
+                    temp = sp.zeros(*covariance_matrix.shape)
+                    temp[0, 0] = covariance_matrix[1, 1]
+                    temp[0, 1] = -covariance_matrix[0, 1]
+                    temp[1, 0] = -covariance_matrix[1, 0]
+                    temp[1, 1] = covariance_matrix[0, 0]
+                    invC = temp/detC
+                else:
+                    invC = covariance_matrix.inv()
+	 
+                prod = dera_covariance_matrix*invC*derb_covariance_matrix*invC
+                tr = prod.trace()
+                final = 0.5*tr #0.5*sp.simplify(tr)
+        return final 
+
+
+    def get_fisher_matrix(self, variables_list = [], numpify = False, var_values = None, verbose = True):
+
+        matrix_dim = self.matrix_dim
+        shape = [matrix_dim, matrix_dim]
+
+        for variable in self.vars:
+            der_cov = sp.zeros(1, matrix_dim**2)
+            for expression in self.covmatrix_str: 
+                i = self.covmatrix_str.index(expression)
+                der_cov[0, i] = self.derivate(expression, variable, save_derivative = True) 
+          
+            der_cov = der_cov.reshape(*shape)
+
+            for i in range(matrix_dim):
+                for j in range(i, matrix_dim):
+                    der_cov[j, i] = der_cov[i, j]
+
+
+            setattr(self, 'der'+str(variable)+'_matrix', der_cov)
+    
+        if variables_list == []:
+            lista = self.vars
+            s = ' all '         
+        else:
+            lista = variables_list
+            s = ' '
+
+        if verbose:
+            print('Using'+s+'parameters list:', lista)
+
+        combs = list(itertools.combinations_with_replacement(list(lista), 2))    
+       
+        N = len(lista)
+        shape = [N, N]
+        fab = sp.zeros(*shape)
+
+        fab_numpy = {}
+
+        if verbose:
+            print('Calculating fisher matrix')
+
+        for a, b in combs:
+            dera_cov = self.get_expression('der'+str(a)+'_matrix')
+            derb_cov = self.get_expression('der'+str(b)+'_matrix')
+            i, j = lista.index(a), lista.index(b)
+            fab[i, j] = self.__getF__(self.cov_matrix, dera_cov, derb_cov, numpify, var_values)
+            
+            if numpify:
+                all_vars = self.vars
+                numpyified = sp.lambdify(all_vars, fab[i, j], 'numpy')
+                fab_numpy[str(a)+''+str(b)] = numpyified
+                fab_numpy[str(b)+''+str(a)] = numpyified
+            #i, j = lista.index(a), lista.index(b)
+            #fab[i, j] = self.__fab__(cgg, dera_cov, derb_cov)
+        
+        self.fisher = fab 
+        self.fisher_numpy = fab_numpy
+    
+
+    def get_non_marginalized_error(self, variable, **inputs):
+        error = (self.fisher_numpy[variable+variable](**inputs))**-0.5
+        return error         
+
