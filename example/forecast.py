@@ -13,20 +13,23 @@ import sympy as sp
 
 import itertools
 
+
+#################################
+# Read input values, spectra, and N_{ab} matrix from disk
+#################################
+
+# Read name of config file from command line
 if len(sys.argv) == 1:
     print('Choose your configuration file!')
     sys.exit()
 
-## Read configuration file
-
+# Read config options from yaml file
 values_file = str(sys.argv[1])
-
 with open(values_file, 'r') as stream:
     data = yaml.safe_load(stream)
-
 values = data
 
-
+# Get directory and file names
 direc = values['name']
 base_dir = values['file_config']['base_dir']
 data_dir = values['file_config']['data_dir']
@@ -34,10 +37,13 @@ dic_name = values['file_config']['dic_name']
 
 direc = base_dir+direc+'/'
 
+# Read dictionary from pickle file
 with open(direc+data_dir+dic_name, 'rb') as handle:
     dic = pickle.load(handle, encoding = 'latin1')
 
-
+# Get lists of variables: all defined variables, variables varying in Fisher
+# matrix, dict of auto and cross spectra for data covariance matrix, and
+# and list of variables we want to forecast for
 config = values['forecast_config']
 
 variables_list= config['variables_list']
@@ -46,12 +52,14 @@ cov_dict = config['cov_dict']
 
 variables_of_interest = config['variables_of_interest']
 
+# Get expressions defining different bias coefficients, string prefix
+# denoting noise, and multiplicative bias value for new field
 analysis_config = values['analysis_config']
 biases_definitions = analysis_config['biases_definitions']
 noise_prefix = analysis_config['noise_prefix']
 new_bias_expr = analysis_config['new_bias_expr']
 
-
+# Define Forecaster object
 forecast = forecasting.Forecaster(*variables_list)
 
 #variables dictionary for sympy
@@ -66,6 +74,7 @@ for v in variables_list:
      globals()[v] = sp.symbols(v)
      ns[v] = globals()[v]
 '''
+# Terms array holds indices for c_\alpha coefficients (e.g. 'g', 'phiphi')
 terms = biases_definitions.keys()
 
 #here take biases definitions and convert them to sympy
@@ -92,18 +101,21 @@ for x, y in combs:
 
 numpify =  True
 
-#forecast = forecasting.Forecaster(*variables_list)
+# Define algebraic covariance matrix from config file
 forecast.add_cov_matrix(cov_dict)
 forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify)
 
 #here take new bias of the reconstructed field
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
-print(forecast.new_bias)
-print(forecast.cov_matrix[1, 1].args[1])
-print(forecast.fisher)
+# print(forecast.new_bias)
+# print(forecast.cov_matrix[1, 1].args[1])
+# print(forecast.fisher)
 
-for v in variables_of_interest:
-    v_err = forecast.get_non_marginalized_error(v, **dictionary)
+print('')
+print(forecast.fisher_numpy['fnlfnl'](1,1,1,1,1))
+# for v in variables_of_interest:
+#     v_err = forecast.get_non_marginalized_error(v, **dictionary)
+
 
 # #################################
 # # Read input values, spectra, and N_{ab} matrix from disk

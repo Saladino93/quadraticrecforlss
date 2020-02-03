@@ -2,9 +2,7 @@
 """
 
 import sympy as sp
-
 import numpy as np
-
 import itertools
 
 #what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
@@ -56,19 +54,40 @@ class expression():
 
 
 class Forecaster(expression):
+    """Class that computes Fisher matrix and related quantities.
+    """
 
     def __init__(self, *args):
+        """
+        Parameters
+        ----------
+        args : list
+            List of variables we ultimately want to forecast for.
+        """
         expression.__init__(self, *args)
 
     def add_cov_matrix(self, covariance_matrix_dict):
+        """Take covariance matrix from input file and store in convenient form.
+
+        Parameters
+        ----------
+        covariance_matrix_dict : dictionary
+            Dictionary defining auto and cross spectra that make up covariance
+            matrix (e.g. {'Pgg' : ..., 'Pgn' : ..., 'Pnn' : ...}). Must have
+            N(N+1)/2 keys for integer N.
+        """
         elements = []
         expressions_list = []
+
+        # Store expressions from covariance_dict
         for key, value in covariance_matrix_dict.items():
             self.add_expression(key, value)
             expressions_list += [self.get_expression(key)]
             elements += [key]
+        # Store names of expressions
         self.covmatrix_str = elements
 
+        # Assuming dict has N(N+1)/2 elements, extract N and make NxN matrix
         p = len(self.covmatrix_str)
         matrix_dim = int((-1+np.sqrt(1+8*p))/2)
         self.matrix_dim = matrix_dim
@@ -76,6 +95,7 @@ class Forecaster(expression):
         shape = [matrix_dim, matrix_dim]
         covariance = sp.zeros(*shape)
 
+        # Fill in covariance matrix elements
         for i in range(matrix_dim):
             covariance[i, :] = [expressions_list[i:matrix_dim+i]]
         #print(expressions_list)
@@ -114,7 +134,18 @@ class Forecaster(expression):
 
 
     def get_fisher_matrix(self, variables_list = [], numpify = False, verbose = True):
+        """Get per-k Fisher matrix, both in symbolic form and as a matrix of numpy functions.
 
+        Parameters
+        ----------
+        variables_list : list, optional
+            List of variable names to include in Fisher matrix. If not specified,
+            everything in self.vars is used.
+        numpyify : bool, optional
+            Whether to generate numpy-function version of Fisher matrix (default: False).
+        verbose : bool, optional
+            Whether to print some status updates (default: True).
+        """
         matrix_dim = self.matrix_dim
         shape = [matrix_dim, matrix_dim]
 
