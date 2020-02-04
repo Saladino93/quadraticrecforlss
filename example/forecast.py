@@ -126,24 +126,6 @@ for x, y in combs:
 
 numpify =  True
 
-# # Define algebraic covariance matrix from config file
-# forecast.add_cov_matrix(cov_dict)
-# forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify)
-#
-# #here take new bias of the reconstructed field
-# forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
-# # print(forecast.new_bias)
-# # print(forecast.cov_matrix[1, 1].args[1])
-# # print(forecast.fisher)
-#
-# print('')
-# print(forecast.fisher_numpy['fnlfnl'](1,1,1,1,1))
-# # for v in variables_of_interest:
-# #     v_err = forecast.get_non_marginalized_error(v, **dictionary)
-
-
-#forecast = forecasting.Forecaster(*variables_list)
-
 #here take new bias of the reconstructed field
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
@@ -151,20 +133,58 @@ forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 #var_values['new_bias'] =
 
 forecast.add_cov_matrix(cov_dict)
-forecast.plot_cov(var_values, legend = legend_cov, title = title_cov, xlabel = xlabel_cov, ylabel = ylabel_cov, output_name = direc+pics_dir+output_name_cov+'.png')
+
+legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
+              'Pgg': {'color': 'red', 'ls': '-'},
+              'shot': {'color': 'blue', 'ls': '-'},
+              'Ngg': {'color': 'green', 'ls': '-'}}
+output_name_cov = 'test_cov'
+
+# forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
+#                   output_name = direc+pics_dir+output_name_cov+'.pdf')
+
+forecast.get_fisher_matrix(variables_list_fisher, numpify=True,
+                            var_values = var_values)
+
+kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume'])
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl)).T)
+
+kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume'])
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl)).T)
+
+kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume'])
+np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl)).T)
+
+error_versions = {
+    'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
+    'Non-marg, integrated': {'marginalized': False, 'integrated': True},
+    'Marg, integrated': {'marginalized': True, 'integrated': True}
+}
+forecast.plot_forecast('fnl', error_versions,
+                        kmin = K.min(), kmax = K.max(),
+                        volume = values['survey_config']['geometry']['volume'],
+                        xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
+                        output_name = direc+pics_dir+output_name+'test_forecast.pdf')
 
 
-del forecast.ns['new_bias']
-var_values['new_bias'] = 10000
+
+# del forecast.ns['new_bias']
+# var_values['new_bias'] = 10000
 
 ##TO CHECK: no dependence on new_bias var
 
-forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
+# forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
 
 ########print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
 
-#can also loop over all other variables of fisher list
-#could put a dictionary for labels
-error_versions = {'a': {'marginalized': False, 'integrated': False}, 'b': {'marginalized': False, 'integrated': True}}
-for v in variables_of_interest:
-    forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
+# #can also loop over all other variables of fisher list
+# #could put a dictionary for labels
+# error_versions = {'a': {'marginalized': False, 'integrated': False}, 'b': {'marginalized': False, 'integrated': True}}
+# for v in variables_of_interest:
+#     forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
