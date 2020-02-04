@@ -226,6 +226,7 @@ Plin = np.interp(est.Krange, K, Plin)
 for a, b in listKeys:
     dic['N'+a+b] = est.getN(a, b)
     dic['N'+b+a] = dic['N'+a+b]
+    np.savetxt(direc+data_dir+'N'+a+b+'.txt',np.array((est.Krange,est.getN(a,b))).T)
 
 
 new_bias = 1000 ##to be decided if I have to use sympy also here
