@@ -69,6 +69,8 @@ class Forecaster(expression):
         """
         Parameters
         ----------
+        K : array
+            List of k values to use in forecast.
         args : list
             List of variables we ultimately want to forecast for.
         """
@@ -116,10 +118,27 @@ class Forecaster(expression):
         self.cov_matrix = covariance
 
 
-    def plot_cov(self, var_values, legend = {'Plin': 'black'}, title = 'Covs', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '$P$ $(h^3 Mpc^{-3})$', output_name = ''):
+    def plot_cov(self, var_values, legend = {'Plin': 'black'}, title = 'Covs',
+                 xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '$P$ $(h^3 Mpc^{-3})$', output_name = ''):
+        """Plot various ingredients of covariance matrix.
 
+        Parameters
+        ----------
+        var_values : dict
+            Dictionary of variable values to use in plots.
+        legend : dict
+            Dictionary of items to plot, specifying colors for each.
+            Possible keys: Plin, Pgg, Pgn, Pnn, Ngg, shot
+        title : str
+            Title of plot.
+        xlabel, ylabel : str
+            Axis labels for plot.
+        output_name : str
+            File name for plot output.
+        """
         K = self.K
 
+        # Evaluate covariance matrix on specified values of parameters.
         all_vars = self.vars
         numpy_covariance_matrix = sp.lambdify(all_vars, self.cov_matrix, 'numpy')
         temp_cov = numpy_covariance_matrix(**var_values)
@@ -143,18 +162,21 @@ class Forecaster(expression):
         spectra['shot'] = K*0.+1./var_values['nhalo']
         spectra['Ngg'] = var_values['Ngg']
 
-
+        # Make plot
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
+        plt.yscale('log')
 
         for v in legend.keys():
             plt.plot(K, spectra[v], label = v, color = legend[v]['color'], ls = legend[v]['ls'])
 
 
-        ax.legend(loc = 'best', prop = {'size': 6})
-        fig.savefig(output_name, dpi = 300)
+        # ax.legend(loc = 'best', prop = {'size': 6})
+        ax.legend(loc = 'best')
+        # fig.savefig(output_name, dpi = 300)
+        fig.savefig(output_name)
         plt.close(fig)
 
 
@@ -168,10 +190,32 @@ class Forecaster(expression):
     def __get__inv(self):
         return 0
 
-    def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix, numpify = False, var_values = None):
+    def __getF__(self, covariance_matrix, dera_covariance_matrix, derb_covariance_matrix,
+                 numpify = False, var_values = None):
+        """Compute Fisher matrix element.
+
+        Parameters
+        ----------
+        covariance_matrix : array
+            Symbolic version of covariance matrix.
+        dera_covariance_matrix : array
+            Symbolic version of derivative covariance matrix w.r.t. parameter a.
+        derb_covariance_matrix : array
+            Symbolic version of derivative covariance matrix w.r.t. parameter b.
+        numpify : bool, optional
+            Whether to return numpy-computed Fisher matrix (default: False).
+        var_values : dict, optional
+            Dictionary of variable values for numerical computation.
+
+        Returns
+        -------
+        final : array
+            Fisher element
+        """
         if numpify:
             all_vars = self.vars
 
+            # TODO: what is po for? priors?
             po = sp.symbols('po')
             if po not in all_vars:
                 all_vars += [po]
@@ -191,6 +235,7 @@ class Forecaster(expression):
                 return numpy_covariance_matrix(b10, b01, b11, b20, bs2, fnl, nhalo, Pnlin, M, deltac, a1, a2, new_bias, Nphiphig, Ngt, Ngs, Ngg, Nc02g, Nc01g, Nc11g)
             '''
 
+            # Evaluate covariance and covariance derivatives at input parameter values
             cov_mat = numpy_covariance_matrix(**var_values)
             dera_cov_mat = numpy_dera_covariance_matrix(**var_values)
             derb_cov_mat = numpy_derb_covariance_matrix(**var_values)
@@ -199,6 +244,7 @@ class Forecaster(expression):
 
             final = []
 
+            # Compute Fisher matrix
             for i in range(shape[-1]):
                 cov = cov_mat[:, :, i]
                 dera_cov = dera_cov_mat[:, :, i]-var_values['po'][i]*1
@@ -231,7 +277,7 @@ class Forecaster(expression):
 
         return final
 
-    def get_fisher_matrix(self, variables_list = [], numpify = False, verbose = True):
+    def get_fisher_matrix(self, variables_list = [], numpify = False, var_values = None, verbose = True):
         """Get per-k Fisher matrix, both in symbolic form and as a matrix of numpy functions.
 
         Parameters
@@ -239,7 +285,7 @@ class Forecaster(expression):
         variables_list : list, optional
             List of variable names to include in Fisher matrix. If not specified,
             everything in self.vars is used.
-        numpyify : bool, optional
+        numpify : bool, optional
             Whether to generate numpy-function version of Fisher matrix (default: False).
         verbose : bool, optional
             Whether to print some status updates (default: True).
@@ -259,10 +305,12 @@ class Forecaster(expression):
         matrix_dim = self.matrix_dim
         shape = [matrix_dim, matrix_dim]
 
+        # Compute derivatives of covariance matrix w.r.t. each parameter of interest
         for variable in self.vars:
             der_cov = sp.diff(self.cov_matrix, variable)
             setattr(self, 'der'+str(variable)+'_matrix', der_cov)
 
+        # Make list of parameters to use
         if variables_list == []:
             lista = self.vars
             s = ' all '
@@ -286,7 +334,10 @@ class Forecaster(expression):
         if verbose:
             print('Calculating fisher matrix')
 
+        # For each parameter pair, get Fisher element
         for a, b in combs:
+            if verbose:
+                print('\t%s, %s' % (a,b))
             dera_cov = self.get_expression('der'+str(a)+'_matrix')
             derb_cov = self.get_expression('der'+str(b)+'_matrix')
             i, j = lista.index(a), lista.index(b)
@@ -305,24 +356,48 @@ class Forecaster(expression):
             self.fisher = fab
 
 
-    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100):
+    def get_error(self, variable, marginalized = False, integrated = False,
+                  kmin = 0.005, kmax = 0.05, volume = 100):
+        """Get Fisher errorbar on specific parameter.
 
+        Parameters
+        ----------
+        variable : str
+            Parameter to get error for.
+        marginalized : bool, optional
+            Whether to marginalize over other parameters (default: False).
+        integrated : bool, optional
+            Whether to integrate Fisher matrix in k (default: False).
+        kmin : float, optional
+            Minimum value of long-mode k_min to use (default: 0.005).
+        kmax : float, optional
+            Maximum value of long-mode k_min to use (default: 0.05).
+        volume : float, optional
+            Survey volume, in (Gpc/h)^3 (default: 100).
+        """
+
+        # Convert volume from Gpc^3 to Mpc^3
         volume *= 10**9
 
+        # Get unmarginalized error (only used if integrate==False)
         error = self.get_non_marginalized_error_per_mode(variable)
 
         K = self.K.copy()
 
         if integrated:
 
+            # Make array of k_min values to consider
             Ks = np.arange(kmin, kmax, 0.001)
 
+            # Define empty array for Fisher values, and fetch parameter pairs
             shape = self.fisher_numpy.shape
             f_int = np.zeros((shape[0], shape[1], len(Ks)))
             cov_int_marg = f_int.copy()
             lista = self.fisher_list
             combs = list(itertools.combinations_with_replacement(list(lista), 2))
 
+            # For each parameter pair, get Fisher element for each k, and
+            # do k integral
             for a, b in combs:
                 i, j = lista.index(a), lista.index(b)
                 f = self.fisher_numpy[i, j, :]
@@ -334,7 +409,9 @@ class Forecaster(expression):
                     IntegratedFish = np.append(IntegratedFish, error)
 
                 f_int[i, j, :] = IntegratedFish
+                f_int[j, i, :] = f_int[i, j, :]
 
+            # For each k_min, invert the Fisher matrix
             for i in range(f_int.shape[-1]):
                 matrix = f_int[..., i]
                 cov_int_marg[..., i] = np.linalg.inv(matrix)
@@ -342,18 +419,33 @@ class Forecaster(expression):
 
             ind1, ind2 = lista.index(variable), lista.index(variable)
 
+            # Get the errorbar, as either F_{ii}^{-0.5} in the unmarginalized
+            # case, or (F^{-1})_{ii}^{0.5} in the marginalized case
             if not marginalized:
-                error = f_int[ind1, ind2, :]
+                # error = f_int[ind1, ind2, :]
+                error = f_int[ind1, ind2, :]**-0.5
             else:
-                error = cov_int_marg[ind1, ind2, :]
-
+                # error = cov_int_marg[ind1, ind2, :]
+                error = cov_int_marg[ind1, ind2, :]**0.5
 
             K = Ks
-            error = error**-0.5
+            # error = error**-0.5
 
         return K, error
 
     def get_non_marginalized_error_per_mode(self, variable):
+        """Get unmarginalized error for a specific parameter.
+
+        Parameters
+        ----------
+        variable : str
+            Parameter to get error for.
+
+        Returns
+        -------
+        error : float
+            Unmarginalized errorbar on specified parameter.
+        """
         lista = self.fisher_list
         i, j = lista.index(variable), lista.index(variable)
         error = (self.fisher_numpy[i, j])**-0.5
@@ -386,29 +478,65 @@ class Forecaster(expression):
         return result
 
     def getIntregratedFisher(self, K, FisherPerMode, kmin, kmax, V):
+        """Integrate per-mode Fisher matrix element in k, to get full Fisher matrix element.
+
+        Given arrays of k values and corresponding Fisher matrix elements F(k), compute
+            \frac{V}{(2\pi)^2} \int_{kmin}^{kmax} dk k^2 F(k) ,
+        where V is the survey volume. The function actually first interpolates over
+        the discrete supplied values of FisherPerMode, and then integrates the
+        interpolating function between kmin and kmax using scipy.integrate.quad.
+
+        Parameters
+        ----------
+        K : ndarray
+            Array of k values.
+        FisherPerMode : array
+            Array of Fisher element values corresponding to K.
+        kmin : float
+            Lower limit of k integral.
+        kmax : float
+            Upper limit of k integral.
+        V : float
+            Survey volume.
+
+        Returns
+        -------
+        result : float
+            Result of integral.
+        """
         if (kmin<np.min(K)) or (kmax>np.max(K)):
             print('Kmin(Kmax) should be higher(lower) than the minimum(maximum) of the K avaliable!')
+            print('\tMin, max K available: %f %f' % (np.min(K),np.max(K)))
+            print('\tInput Kmin, Kmax: %f %f' % (kmin,kmax))
             return 0
         else:
             function = scipy.interpolate.interp1d(K, FisherPerMode)
             result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
-            result = result[0]*V/(2.*np.pi**2.)
+            # result = result[0]*V/(2.*np.pi**2.)
+            result = result[0]*V/(4.*np.pi**2.)
             return result
 
-    def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05, volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '\sigma', xscale = 'linear', yscale = 'log', output_name = ''):
+    def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05,
+                      volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$',
+                      ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = ''):
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
         plt.xlabel(xlabel)
         plt.ylabel(ylabel)
         plt.xscale(xscale)
         plt.yscale(yscale)
+        plt.grid(which="both")
+
         for label, value in error_versions.items():
-            K, error = self.get_error(variable, value['marginalized'], value['integrated'], kmin, kmax, volume)
-            label = ''
-            for l, v in value.items():
-                if v:
-                    label += l+' '
+            K, error = self.get_error(variable, value['marginalized'], value['integrated'],
+                                      kmin, kmax, volume)
+            # label = ''
+            # for l, v in value.items():
+            #     if v:
+            #         label += l+' '
             plt.plot(K, error, label = label)
-        ax.legend(loc = 'best', prop = {'size': 6})
-        fig.savefig(output_name, dpi = 300)
+        ax.legend(loc = 'best')
+        # ax.legend(loc = 'best', prop = {'size': 6})
+        # fig.savefig(output_name, dpi = 300)
+        fig.savefig(output_name)
         plt.close(fig)
