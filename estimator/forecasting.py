@@ -15,6 +15,9 @@ import scipy.interpolate
 
 import scipy.integrate
 
+import mpmath
+mpmath.dps = 50
+
 #what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
 
 class expression():
@@ -314,18 +317,33 @@ class Forecaster(expression):
             inverse_matrix = temporary_matrix.inv()
             dic_subs = {}
             temp_list = []
-            method = 'mpmath'
+            method = 'numpy'
+            
             for i in range(N):
                 for j in range(i, N):
                     dic_subs['A_'+str(i)+str(j)] = sp.lambdify(self.vars, fab[i, j], method)(**var_values)
                     temp_list += ['A_'+str(i)+str(j)]
-           
+                    #dic_subs['A_'+str(i)+str(j)] = i+j**i
+                    
+                  
+            #CC = sp.lambdify(temp_list, inverse_matrix, method)(**dic_subs)
+            #BB = sp.lambdify(temp_list, temporary_matrix, method)(**dic_subs)
+            #print('COND NUMBER', np.linalg.cond(BB))
+            #print(CC@BB)            
+ 
             lam_matrix = sp.lambdify(self.vars, fab, method) 
             lam_inverse_matrix = sp.lambdify(temp_list, inverse_matrix, method)
+            print(lam_matrix(**var_values)[:, :, 0])
             mm = lam_inverse_matrix(**dic_subs)[:, :, 0]
-            nn = lam_matrix(**var_values)[0]
+            #print(dic_subs)
+            #print(inverse_matrix)
+            nn = lam_matrix(**var_values)[:, :, 0]
+            print('COND NUMBER', np.linalg.cond(nn))
+            print(mm)
+            print(np.linalg.inv(nn))
             print('SHAPE', mm.shape)
             print(mm@nn)
+            print(nn@np.linalg.inv(nn))
             for i in range(40):
                 print(mm[:, :, i])
             #for self.cov_matrix.shape[-1]:
