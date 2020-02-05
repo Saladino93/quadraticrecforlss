@@ -47,12 +47,14 @@ analysis_config:
 forecast_config:
                 variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin', 'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs', 'Nc02g', 'Nc01g', 'Nc11g', 'new_bias'] #best thing if the script automatically detects the variables from the expressions #should also add shot bis and tris
                 variables_list_fisher: ['b10', 'fnl', 'b20', 'bs2']
-                cov_dict: {'Pgg': '(b10+fnl)**2*Plin+1/nhalo', 'Pgn': 'b01*(b10+fnl)*Plin', 'Pnn': 'new_bias**2*Plin+Ngg'}
+                cov_dict: {'Pgg': '(b10+2*deltac*(b10-1)*fnl/M)**2*Plin+1/nhalo', 'Pgn': 'b01*(b10+2*deltac*(b10-1)*fnl/M)*Plin', 'Pnn': 'new_bias**2*Plin+Ngg'}
                 variables_of_interest: ['fnl']
                 pics_config:
                     title: 'Error' 
                     xlabel: '$K$ $(h Mpc^{-1})$'
                     ylabel: '$\sigma_{f_nl}$'
+                    xscale: 'linear' # "linear", "log", ...
+                    yscale: 'log'
                     output_name: 'error_'
                     title_cov: 'Powers'
                     xlabel_cov: '$K$ $(h Mpc^{-1})$'

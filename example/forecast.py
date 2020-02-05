@@ -130,10 +130,10 @@ del forecast.ns['new_bias']
 var_values['new_bias'] = 10000
 
 ##TO CHECK: no dependence on new_bias var
-
+numpify = False
 forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
 
-########print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
+print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
 
 #can also loop over all other variables of fisher list
 #could put a dictionary for labels
