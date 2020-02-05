@@ -6,6 +6,9 @@ import itertools
 
 import matplotlib.pyplot as plt
 
+plt.rcParams["font.family"] = "serif"
+plt.rcParams["mathtext.fontset"] = "stix"
+
 import scipy
 
 import scipy.interpolate
@@ -129,7 +132,7 @@ class Forecaster(expression):
         plt.ylabel(ylabel)
 
         for v in legend.keys():
-            plt.plot(K, spectra[v], label = v, color = legend[v]['color'], ls = legend[v]['ls'])
+            plt.plot(K, spectra[v], label = v, color = legend[v]['color'], ls = legend[v]['ls'], lw = 2)
 
 
         ax.legend(loc = 'best', prop = {'size': 6})
@@ -154,7 +157,10 @@ class Forecaster(expression):
                 if po not in all_vars:
                     all_vars += [po]
                     var_values['po'] = np.ones(self.length_K)
-              
+             
+                #for k, v in var_values.items():
+                #    var_values[k] = 
+ 
                 numpy_covariance_matrix = sp.lambdify(all_vars, covariance_matrix, 'numpy')
                 numpy_dera_covariance_matrix = sp.lambdify(all_vars, dera_covariance_matrix+po*sp.ones(*covariance_matrix.shape), 'numpy') #sometimes you could have 0. or constant derivative from sympy --> do not vectorize
                 numpy_derb_covariance_matrix = sp.lambdify(all_vars, derb_covariance_matrix+po*sp.ones(*covariance_matrix.shape), 'numpy')
@@ -187,26 +193,54 @@ class Forecaster(expression):
 
                 final = np.array(final)
         else:
+
+                '''
+                Nx, Ny = covariance_matrix.shape[0], covariance_matrix.shape[1] #note they should be equal for a covariance matrix
+                temp_matrix = sp.zeros(Nx, Ny)
+                N = Nx #or Ny                
+                tot_elements = N*(N+1)/2
+
+                auxilary_variables = ['A'+str(i) for i in range(tot_elements)]
+                
+                temp_matrix = sp.Matrix(N, N, lambda i, j: sp.var('temp_%s%s' % (i, j) ))
+ 
+                for i in range(N):
+                    for j in range(i, N):
+                        var_temp = 'A_'+str(i)+str(j)
+                        auxilary_variables += [var_temp]
+                        exec(var_temp+'=0')
+                        globals()[var_temp] = sp.symbols(var_temp)
+                        temp_matrix[i, j] = globals()[var_temp]
+                        temp_matrix[j, i] = temp_matrix[i, j]                                 
+               
+                print(temp_matrix)
+
+                inv_temp_matrix = temp_matrix.inv()
+
+                invC = sp.zeros(Nx, Ny)
+ 
+                for i in range(N):
+                    for j in range(i, N):   
+                        invC[i, j] = inv_temp_matrix[i, j]
+                '''
                 #Sympy way, non numerical. Fastish for simple expressions. More complex expressions can take 'infinite' time.
                 #To be improved
                 ##quick fix till i figure how i can do inv with all these vars as sympy gets stuck
                 ##maybe just define general matrix and then subs values
                 ##or calculate F directly on numbers!
                 if covariance_matrix.shape == (2, 2):
-                    detC = covariance_matrix[0, 0]*covariance_matrix[1, 1]-covariance_matrix[0, 1]*covariance_matrix[1, 0]
-                    temp = sp.zeros(*covariance_matrix.shape)
-                    temp[0, 0] = covariance_matrix[1, 1]
-                    temp[0, 1] = -covariance_matrix[0, 1]
-                    temp[1, 0] = -covariance_matrix[1, 0]
-                    temp[1, 1] = covariance_matrix[0, 0]
-                    invC = temp/detC
+                    print('Using temporary hack for 2x2 covariance matrices, soon generalization')
+                    Atemp, Btemp, Ctemp = sp.symbols('Atemp Btemp Ctemp')
+                    N = sp.Matrix([[Atemp, Btemp], [Btemp, Ctemp]])
+      
+                    invN = N.inv()
+                    invC = invN.subs({Atemp: covariance_matrix[0, 0], Btemp: covariance_matrix[0, 1], Ctemp: covariance_matrix[1, 1]}) 
                 else:
                     invC = covariance_matrix.inv()
-	 
+	         
                 prod = dera_covariance_matrix*invC*derb_covariance_matrix*invC
                 tr = prod.trace()
-                final = 0.5*sp.simplify(tr)
-
+                final = 0.5*tr #sp.simplify(tr)
         return final 
 
 
@@ -264,13 +298,40 @@ class Forecaster(expression):
                 fab_numpy[j, i, :] = f                
             else:
                 fab[i, j] = f
+                fab[j, i] = f
+                f_func = sp.lambdify(self.vars, f, 'mpmath')
+                fab_numpy[i, j, :] = f_func(**var_values) 
+                fab_numpy[j, i, :] = fab_numpy[i, j, :]
+                #print(f_func(**var_values))
 
         if numpify:
             self.fisher = fab_numpy
             self.fisher_numpy = fab_numpy
         else:
             self.fisher = fab
-
+            print('TRY INVERSE METHOD')
+            temporary_matrix = sp.Matrix(N, N, lambda i, j: sp.symbols('A_'+str(i)+str(j)) if i <= j else sp.symbols('A_'+str(j)+str(i))) 
+            inverse_matrix = temporary_matrix.inv()
+            dic_subs = {}
+            temp_list = []
+            method = 'mpmath'
+            for i in range(N):
+                for j in range(i, N):
+                    dic_subs['A_'+str(i)+str(j)] = sp.lambdify(self.vars, fab[i, j], method)(**var_values)
+                    temp_list += ['A_'+str(i)+str(j)]
+           
+            lam_matrix = sp.lambdify(self.vars, fab, method) 
+            lam_inverse_matrix = sp.lambdify(temp_list, inverse_matrix, method)
+            mm = lam_inverse_matrix(**dic_subs)[:, :, 0]
+            nn = lam_matrix(**var_values)[0]
+            print('SHAPE', mm.shape)
+            print(mm@nn)
+            for i in range(40):
+                print(mm[:, :, i])
+            #for self.cov_matrix.shape[-1]:
+            
+            self.fisher_numpy = fab_numpy 
+            
 
     def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100):
                 
@@ -301,7 +362,7 @@ class Forecaster(expression):
                     IntegratedFish = np.append(IntegratedFish, error)
             
                 f_int[i, j, :] = IntegratedFish
-
+                f_int[j, i, :] = f_int[i, j, :]
             for i in range(f_int.shape[-1]):
                 matrix = f_int[..., i]
                 cov_int_marg[..., i] = np.linalg.inv(matrix)
@@ -336,11 +397,15 @@ class Forecaster(expression):
         def is_pos_def(x):
             return np.all(np.linalg.eigvals(x) > 0)
 
+        import mpmath
+        mpmath.dps = 50
         for i in range(self.fisher_numpy.shape[-1]):
             matrix = self.fisher_numpy[..., i]
             print(matrix)
             print(is_pos_def(matrix))
-            matrix_inv = np.linalg.inv(matrix)
+            m = mpmath.matrix(matrix)
+            print(m**-1)
+            matrix_inv = print(m**-1)#np.linalg.inv(matrix)
             inverse_fisher_numpy[..., i] = matrix_inv
   
         i, j = lista.index(variable), lista.index(variable)         
@@ -375,7 +440,7 @@ class Forecaster(expression):
             for l, v in value.items():
                 if v:
                     label += l+' '
-            plt.plot(K, error, label = label)
+            plt.plot(K, error, label = label, lw = 2)
         ax.legend(loc = 'best', prop = {'size': 6})
         fig.savefig(output_name, dpi = 300)
         plt.close(fig)
