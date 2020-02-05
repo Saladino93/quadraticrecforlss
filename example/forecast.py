@@ -146,6 +146,10 @@ output_name_cov = 'test_cov'
 forecast.get_fisher_matrix(variables_list_fisher, numpify=True,
                             var_values = var_values)
 
+# print(forecast.cov_matrix[0,1])
+# print(forecast.K)
+# print(forecast.fisher_numpy[:,:,0])
+
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
