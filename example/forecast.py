@@ -77,26 +77,12 @@ for vv in variables_list:
 
 forecast = forecasting.Forecaster(K, *variables_list)
 
-#NOTE#maybe just use ns of forecast
-
-'''
-#Here define basic variables, converting them to sympy variables
-for v in variables_list:
-     exec(v+'=0')
-     globals()[v] = sp.symbols(v)
-     ns[v] = globals()[v]
-'''    
-
 #here take biases definitions and convert them to sympy
 for x in terms:
     exec(x+'=0')
     globals()[x] = sp.sympify(biases_definitions[x], locals = forecast.ns)
     forecast.ns[x] = globals()[x]
    
-
-#for y in terms:
-#    print(y)
-#    print(globals()[y])     
 
 #define noise variables
 for x, y in combs:
@@ -108,41 +94,20 @@ for x, y in combs:
     forecast.ns[noise_prefix+x+y] = globals()[noise_prefix+x+y]
     forecast.ns[noise_prefix+y+x] = globals()[noise_prefix+y+x] 
 
-    #forecast.vars += [globals()[noise_prefix+x+y]]
-    #if x != y:
-    #    forecast.vars += [globals()[noise_prefix+y+x]]
-
-#for k in var_values.keys():
-#    try:
-#        var_values[k] = (var_values[k]).astype(longfloat)
-#    except:
-#        var_values[k] = longfloat(var_values[k])
-numpify =  True
-
-#forecast = forecasting.Forecaster(*variables_list)
-
 #here take new bias of the reconstructed field
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 
-#var_values['new_bias'] = 
 
 forecast.add_cov_matrix(cov_dict)
 forecast.plot_cov(var_values, legend = legend_cov, title = title_cov, xlabel = xlabel_cov, ylabel = ylabel_cov, output_name = direc+pics_dir+output_name_cov+'.png')
 
 
-del forecast.ns['new_bias']
-var_values['new_bias'] = 10000
+forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
 
-##TO CHECK: no dependence on new_bias var
-numpify = True
-forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
+forecast.set_mpmath_integration_precision()
 
-#print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
-
-#can also loop over all other variables of fisher list
-#could put a dictionary for labels
-error_versions = {'a': {'marginalized': False, 'integrated': False}, 'b': {'marginalized': False, 'integrated': True}}
+error_versions = {'Per mode not integrated ': {'marginalized': False, 'integrated': False}, 'Integrated marginalized': {'marginalized': False, 'integrated': True}}
 for v in variables_of_interest:
     forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
 

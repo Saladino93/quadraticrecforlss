@@ -4,7 +4,7 @@ import numpy as np
 
 import itertools
 
-#what happens if I create another object and same var names but I want different values? Does sympy create two different instances?
+#IDEA: to combine forecasts just create a + operation for the class
 
 class expression():
     # args here is just the list of variables used 
