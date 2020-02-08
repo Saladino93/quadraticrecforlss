@@ -417,13 +417,29 @@ class Forecaster(expression):
 
         import mpmath
         mpmath.dps = 50
+
+        import scipy
+
+        def scipy_inverse(m):
+            U, S, V = scipy.linalg.svd(m)
+            S = np.diag(S)
+            Uinv, Sinv, Vinv = scipy.linalg.inv(U), scipy.linalg.inv(S), scipy.linalg.inv(V)
+            invm = Vinv@Sinv@Uinv
+            return invm
+
         for i in range(self.fisher_numpy.shape[-1]):
             matrix = self.fisher_numpy[..., i]
-            print(matrix)
-            print(is_pos_def(matrix))
+            #print(matrix)
+            #print(is_pos_def(matrix))
             m = mpmath.matrix(matrix)
-            print(m**-1)
-            matrix_inv = print(m**-1)#np.linalg.inv(matrix)
+            print(matrix)
+            print(max(m*m**-1))
+            matrix_inv = scipy_inverse(matrix)#np.linalg.inv(matrix) 
+            identity = np.ones(matrix_inv.shape)
+            #print(matrix)
+            #print(matrix_inv@matrix)
+            #print(np.max(abs(matrix_inv@matrix-identity)))
+            print(matrix@scipy.linalg.inv(matrix))
             inverse_fisher_numpy[..., i] = matrix_inv
   
         i, j = lista.index(variable), lista.index(variable)         
@@ -441,7 +457,7 @@ class Forecaster(expression):
             return 0
         else:
             function = scipy.interpolate.interp1d(K, FisherPerMode)
-            result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
+            result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax, epsrel = 1e-15)
             result = result[0]*V/(2.*np.pi**2.)
             return result
 

@@ -55,7 +55,7 @@ pics_config = config['pics_config']
 for key, val in pics_config.items():
     exec(key + '=val')
        
-
+dic['fnl'] = 0.
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
 
@@ -112,6 +112,11 @@ for x, y in combs:
     #if x != y:
     #    forecast.vars += [globals()[noise_prefix+y+x]]
 
+#for k in var_values.keys():
+#    try:
+#        var_values[k] = (var_values[k]).astype(longfloat)
+#    except:
+#        var_values[k] = longfloat(var_values[k])
 numpify =  True
 
 #forecast = forecasting.Forecaster(*variables_list)
@@ -130,10 +135,10 @@ del forecast.ns['new_bias']
 var_values['new_bias'] = 10000
 
 ##TO CHECK: no dependence on new_bias var
-numpify = False
+numpify = True
 forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
 
-print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
+#print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
 
 #can also loop over all other variables of fisher list
 #could put a dictionary for labels
