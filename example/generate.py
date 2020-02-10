@@ -26,7 +26,6 @@ import itertools
 
 import yaml
 
-
 #################################
 # Read input values and spectra
 #################################
@@ -122,7 +121,6 @@ betaf = 2.*deltac*(b10-1.)
 variables_list = values['forecast_config']['variables_list']
 
 
-
 # If nonlinear bias values aren't specified, use theory predictions
 if bs2 == '':
    print('Using theory value for bs2!')
@@ -166,11 +164,9 @@ except KeyError:
     fnlScaling = 1
 
 
-''' MODEL INPUT TOTAL POWER SPECTRUM
-
+'''
 The total power spectrum will be given by the square b10+betaf*fnl/M
 times the NON linear power spectrum plus the shot noise contribution of the tracer
-
 '''
 
 shot = 1/nhalo
@@ -300,96 +296,4 @@ sh_tris_3_a = (shotfactor_onePpower*Ngg)**2.*shot
 sh_tris_3_b = (shotfactor_zeroPpower*Ngg)*(shotfactor_twoPpower*Ngg)*shot
 
 sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b
-
-#######DICTIONARTY OF STUFF###########
-
-prefac = 1.
-
-M = Mscipy(est.Krange)
-
-term_labels = np.array(list(est.keys))
-
-listKeys = list(itertools.combinations_with_replacement(list(term_labels), 2))
-
-dic = {}
-
-dic['K'] = est.Krange
-
-for a, b in listKeys:
-    dic['N'+a+b] = prefac**2.*est.getN(a, b)
-    dic['N'+b+a] = dic['N'+a+b]
-
-B = betaf
-C = 4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(bg-1.))-2.*(bg-1.))
-A = (2./a1)*(deltac*(b20-2*(a1+a2)*(bg-1.))-a1**2.*(bg-1.))+2.*deltac*(bg-1.)
-
-
-dic['minkh'] = minkh
-dic['maxkh'] = maxkh
-dic['minkhrec'] = minkhrec
-dic['maxkhrec'] = maxkhrec
-dic['z'] = z
-dic['ngal'] = nhalo
-#from the loop parts
-dic['kphiphi'] = fnl*b10
-dic['kb01'] = fnl*b01
-dic['kb11'] = fnl*b11
-dic['kb02'] = fnl**2.*b02
-
-dic['dfnlkphiphi'] = b10
-
-dic['bg'] = b10
-dic['ks'] = cs
-dic['kt'] = ct
-dic['kg'] = cg
-dic['b20'] = b20
-dic['bs2'] = bs2
-
-dic['fnl'] = fnl
-dic['bfnllargescales'] = betaf*fnl/M
-dic['derbfnllargescales'] = betaf/M
-dic['betaf'] = betaf
-dic['M'] = M
-
-Cgg = np.interp(est.Krange, K, Ptot)
-PL = np.interp(est.Krange, K, Plin)
-# dfnlCgg = 2*(b10(betaf*fnl*D(z))/M)*(betaf*D(z)/M)*PL
-dfnlCgg = 2*(b10+(betaf*fnl/M))*(betaf/M)*PL
-
-terms = []
-for a in term_labels:
-    terms += [dic['k'+a]*dic['Ngg']/dic['Ng'+a]]
-partial = prefac*b10*sum(terms)
-
-Cnn = (partial)**2.*PL+dic['Ngg']
-derpartialfnl = prefac * b10 * \
-    ( (b10*dic['Ngg']/dic['Ngphiphi']) + b11*(dic['Ngg']/dic['Ngb11']) \
-        + b01*(dic['Ngg']/dic['Ngb01']) + 2*fnl*b02*(dic['Ngg']/dic['Ngb02'])
-        )
-dfnlCnn = 2*partial*derpartialfnl*PL
-
-# Cgn = (b10+(betaf*fnl*D(z))/M)*partial*PL
-# dfnlCgn = (b10+(betaf*fnl*D(z))/M)*derpartialfnl*PL+(betaf*D(z)/M)*partial*PL
-Cgn = (b10+(betaf*fnl/M))*partial*PL
-dfnlCgn = (b10+(betaf*fnl/M))*derpartialfnl*PL+(betaf/M)*partial*PL
-
-dic['Cgg'] = Cgg
-dic['Cnn'] = Cnn
-dic['Cgn'] = Cgn
-dic['dfnlCgg'] = dfnlCgg
-dic['dfnlCgn'] = dfnlCgn
-dic['dfnlCnn'] = dfnlCnn
-dic['PL'] = PL
-dic['shotnoise'] = shot
-# dic['shot_noise_bispectrum'] = shot_noise_bispectrum
-# dic['shot_noise_trispectrum'] = shot_noise_trispectrum
-dic['term_labels'] = term_labels
-# TODO: fix line below so that we actually save the values we want
-dic['values'] = values
-
-
-with open(direc+'/data_dir/spectra.pickle', 'wb') as handle:
-    pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-print('Done')
 '''

@@ -53,8 +53,6 @@ with open(values_file, 'r') as stream:
 
 values = data
 
-print('Values are, ', values)
-
 direc = values['name']
 base_dir = values['file_config']['base_dir']
 data_dir = values['file_config']['data_dir']

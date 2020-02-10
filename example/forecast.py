@@ -68,6 +68,7 @@ pics_config = config['pics_config']
 for key, val in pics_config.items():
     exec(key + '=val')
 
+dic['fnl'] = 0.
 
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
@@ -98,26 +99,11 @@ except KeyError:
 # Define Forecaster object
 forecast = forecasting.Forecaster(K, *variables_list)
 
-#NOTE#maybe just use ns of forecast
-
-'''
-#Here define basic variables, converting them to sympy variables
-for v in variables_list:
-     exec(v+'=0')
-     globals()[v] = sp.symbols(v)
-     ns[v] = globals()[v]
-'''
-
 #here take biases definitions and convert them to sympy
 for x in terms:
     exec(x+'=0')
     globals()[x] = sp.sympify(biases_definitions[x], locals = forecast.ns)
     forecast.ns[x] = globals()[x]
-
-
-#for y in terms:
-#    print(y)
-#    print(globals()[y])
 
 #define noise variables
 for x, y in combs:
@@ -129,17 +115,9 @@ for x, y in combs:
     forecast.ns[noise_prefix+x+y] = globals()[noise_prefix+x+y]
     forecast.ns[noise_prefix+y+x] = globals()[noise_prefix+y+x]
 
-    #forecast.vars += [globals()[noise_prefix+x+y]]
-    #if x != y:
-    #    forecast.vars += [globals()[noise_prefix+y+x]]
-
-numpify =  True
-
 #here take new bias of the reconstructed field
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
-
-#var_values['new_bias'] =
 
 forecast.add_cov_matrix(cov_dict)
 
@@ -152,15 +130,16 @@ output_name_cov = 'test_cov'
 # forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
 #                   output_name = direc+pics_dir+output_name_cov+'.pdf')
 
-forecast.get_fisher_matrix(variables_list_fisher, numpify=True,
-                            var_values = var_values)
+forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
+
+forecast.set_mpmath_integration_precision(100)
 
 # print(forecast.cov_matrix[0,1])
-print(forecast.K)
+# print(forecast.K)
 # print(forecast.fisher_numpy[:,:,-5])
-print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[0,0,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
-print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[0,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
-print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,0,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
 # for i in range(len(variables_list_fisher)):
 #     for j in range(i,len(variables_list_fisher)):
 #         plt.plot(forecast.K,forecast.fisher_numpy[i,j,:],label='%d,%d' % (i,j))
@@ -171,17 +150,18 @@ print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl*fnlScaling)).T)
+# np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl*fnlScaling)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl*fnlScaling)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl*fnlScaling)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 error_versions = {
     'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
@@ -194,20 +174,3 @@ forecast.plot_forecast('fnl', error_versions,
                         xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
                         output_name = direc+pics_dir+output_name+'test_forecast.pdf',
                         rescale_y = fnlScaling)
-
-
-
-# del forecast.ns['new_bias']
-# var_values['new_bias'] = 10000
-
-##TO CHECK: no dependence on new_bias var
-
-# forecast.get_fisher_matrix(variables_list_fisher, numpify = numpify, var_values = var_values)
-
-########print(forecast.get_marginalized_error_per_mode(variables_of_interest[0]))
-
-# #can also loop over all other variables of fisher list
-# #could put a dictionary for labels
-# error_versions = {'a': {'marginalized': False, 'integrated': False}, 'b': {'marginalized': False, 'integrated': True}}
-# for v in variables_of_interest:
-#     forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
