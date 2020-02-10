@@ -512,13 +512,19 @@ class Forecaster(expression):
         else:
             function = scipy.interpolate.interp1d(K, FisherPerMode)
             result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax)
+
+            # if np.abs(result[1]/result[0])>0.2:
+            #     print('WARNING: %.1f%% error reported for Fisher element integral (kmin=%f, kmax=%f)' \
+            #             % (100*np.abs(result[1]/result[0]), kmin, kmax))
+
             # result = result[0]*V/(2.*np.pi**2.)
             result = result[0]*V/(4.*np.pi**2.)
             return result
 
     def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05,
                       volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$',
-                      ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = ''):
+                      ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = '',
+                      rescale_y = 1.):
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
         plt.xlabel(xlabel)
@@ -534,7 +540,7 @@ class Forecaster(expression):
             # for l, v in value.items():
             #     if v:
             #         label += l+' '
-            plt.plot(K, error, label = label)
+            plt.plot(K, rescale_y * error, label = label)
         ax.legend(loc = 'best')
         # ax.legend(loc = 'best', prop = {'size': 6})
         # fig.savefig(output_name, dpi = 300)

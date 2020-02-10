@@ -15,6 +15,8 @@ import numpy as np
 
 import itertools
 
+import matplotlib.pyplot as plt
+
 
 #################################
 # Read input values, spectra, and N_{ab} matrix from disk
@@ -84,6 +86,13 @@ var_values = {}
 for vv in variables_list:
     var_values[vv] = dic[vv]
 
+try:
+    var_values['fnlScaling'] = float(config['fnlScaling'])
+    fnlScaling = var_values['fnlScaling']
+    var_values['fnl'] /= fnlScaling
+except KeyError:
+    fnlScaling = 1
+
 ###### FORECAST ######
 
 # Define Forecaster object
@@ -147,23 +156,32 @@ forecast.get_fisher_matrix(variables_list_fisher, numpify=True,
                             var_values = var_values)
 
 # print(forecast.cov_matrix[0,1])
-# print(forecast.K)
-# print(forecast.fisher_numpy[:,:,0])
+print(forecast.K)
+# print(forecast.fisher_numpy[:,:,-5])
+print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[0,0,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[0,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+print(forecast.getIntregratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+# for i in range(len(variables_list_fisher)):
+#     for j in range(i,len(variables_list_fisher)):
+#         plt.plot(forecast.K,forecast.fisher_numpy[i,j,:],label='%d,%d' % (i,j))
+# plt.xscale('log')
+# plt.legend()
+# plt.savefig('/Users/sforeman/Desktop/fish.pdf')
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl*fnlScaling)).T)
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl*fnlScaling)).T)
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl*fnlScaling)).T)
 
 error_versions = {
     'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
@@ -174,7 +192,8 @@ forecast.plot_forecast('fnl', error_versions,
                         kmin = K.min(), kmax = K.max(),
                         volume = values['survey_config']['geometry']['volume'],
                         xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
-                        output_name = direc+pics_dir+output_name+'test_forecast.pdf')
+                        output_name = direc+pics_dir+output_name+'test_forecast.pdf',
+                        rescale_y = fnlScaling)
 
 
 

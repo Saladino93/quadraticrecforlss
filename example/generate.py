@@ -41,6 +41,7 @@ values_file = str(sys.argv[1])
 with open(values_file, 'r') as stream:
     data = yaml.safe_load(stream)
 values = data
+print('Using config file: %s' % values_file)
 
 # Get directories
 direc = values['name']
@@ -157,6 +158,14 @@ mhalo = float(mhalo)
 nhalo = float(nhalo)
 fnl = float(fnl)
 
+# Extra scaling for fNL in forecasts, to improve conditioning of Fisher matrix
+try:
+    fnlScaling = values['forecast_config']['fnlScaling']
+    fnlScaling = float(fnlScaling)
+except KeyError:
+    fnlScaling = 1
+
+
 ''' MODEL INPUT TOTAL POWER SPECTRUM
 
 The total power spectrum will be given by the square b10+betaf*fnl/M
@@ -206,7 +215,7 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh, 0.001)
+K_of_interest = np.arange(minkh, maxkh+0.001, 0.001)
 
 #Now calculate different noise curves and store them inside the object
 est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
