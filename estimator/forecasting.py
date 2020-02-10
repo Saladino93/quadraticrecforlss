@@ -88,6 +88,8 @@ class Forecaster(expression):
         """
         self.K = K
         self.length_K = len(K)
+        self.fisher_integrated = None
+        self.fisher_integrated_marginalized = None
         expression.__init__(self, *args)
 
     def add_cov_matrix(self, covariance_matrix_dict, ):
@@ -320,7 +322,7 @@ class Forecaster(expression):
  
             
 
-    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, verbose = True):
+    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False, verbose = True):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -355,69 +357,78 @@ class Forecaster(expression):
 
         K = self.K.copy()
 
+        lista = self.fisher_list
+        combs = list(itertools.combinations_with_replacement(list(lista), 2))
+
         if integrated:
 
              # Make array of k_min values to consider
             if Ks is None:
                 Ks = np.arange(kmin, kmax, 0.001)
-
-            # Define empty array for Fisher values, and fetch parameter pairs
-            shape = self.fisher_numpy.shape
-            f_int = np.zeros((shape[0], shape[1], len(Ks)))
-            cov_int_marg = f_int.copy()
-            lista = self.fisher_list
-            combs = list(itertools.combinations_with_replacement(list(lista), 2))
- 
-            if verbose:
-                print('Getting integrated error')
-
-            # For each parameter pair, get Fisher element for each k, and
-            # do k integral
-
-            for a, b in combs:
-                if verbose:
-                    print('\t%s, %s' % (a,b))
-                i, j = lista.index(a), lista.index(b)
-                f = self.fisher_numpy[i, j, :]
-
-                IntegratedFish = np.array([])
-                np.savetxt('fish'+str(a+b)+'.txt', np.c_[K, f])
-                for Kmin in Ks:
-                    error = self.getIntegratedFisher(K, f, Kmin, kmax, volume)
-                    IntegratedFish = np.append(IntegratedFish, error)
             
-                f_int[i, j, :] = IntegratedFish
-                f_int[j, i, :] = f_int[i, j, :]
+
+            #note: also case where Ks changes
+            if self.fisher_integrated is None or recalculate: 
+
+                # Define empty array for Fisher values, and fetch parameter pairs
+                shape = self.fisher_numpy.shape
+                f_int = np.zeros((shape[0], shape[1], len(Ks)))
+    
+                if verbose:
+                    print('Getting integrated error')
+
+                # For each parameter pair, get Fisher element for each k, and
+                # do k integral
+
+                for a, b in combs:
+                    if verbose:
+                        print('\t%s, %s' % (a,b))
+                    i, j = lista.index(a), lista.index(b)
+                    f = self.fisher_numpy[i, j, :]
+
+                    IntegratedFish = np.array([])
+                    
+                    for Kmin in Ks:
+                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume)
+                        IntegratedFish = np.append(IntegratedFish, error)
+                
+                    f_int[i, j, :] = IntegratedFish
+                    f_int[j, i, :] = f_int[i, j, :]
+
+                    self.fisher_integrated = f_int
 
             if verbose:
                 print('Done getting integrated error')
 
             N = len(lista)
-            np.save('matrix.npy', f_int)
-            # For each k_min, invert the Fisher matrix
-            for i in range(f_int.shape[-1]):
-                matrix = f_int[..., i]
-                cov_int_marg[..., i] = np.linalg.inv(matrix)
-                error_inversion1 = np.max(abs(cov_int_marg[..., i]@matrix-np.eye(N)))
-                error_inversion2 = np.max(abs(matrix@cov_int_marg[..., i]-np.eye(N)))
-                # or can just check if m*minv = minv*m within some error
-                if (error_inversion1 > 1e-2) or (error_inversion2 > 1e-2):
-                    print('WARNING: Fisher matrix inversion not accurate.')
 
-            
 
-            ind1, ind2 = lista.index(variable), lista.index(variable)
-            
             # Get the errorbar, as either F_{ii}^{-0.5} in the unmarginalized
             # case, or (F^{-1})_{ii}^{0.5} in the marginalized case
-            if not marginalized:
-                error = f_int[ind1, ind2, :]**-0.5
-            else:
-                error = cov_int_marg[ind1, ind2, :]**0.5 
- 
+            ind1, ind2 = lista.index(variable), lista.index(variable)
+            error = self.fisher_integrated[ind1, ind2, :]**-0.5
+
+            if marginalized:
+                if self.fisher_integrated_marginalized is None or recalculate:
+                    if verbose:
+                        print('Marginalizing')
+                    # For each k_min, invert the Fisher matrix
+                    f_int = self.fisher_integrated
+                    cov_int_marg = f_int.copy()
+                    for i in range(f_int.shape[-1]):
+                        matrix = f_int[..., i]
+                        cov_int_marg[..., i] = np.linalg.inv(matrix)
+                        error_inversion1 = np.max(abs(cov_int_marg[..., i]@matrix-np.eye(N)))
+                        error_inversion2 = np.max(abs(matrix@cov_int_marg[..., i]-np.eye(N)))
+                        # or can just check if m*minv = minv*m within some error
+                        if (error_inversion1 > 1e-2) or (error_inversion2 > 1e-2):
+                            print('WARNING: Fisher matrix inversion not accurate.')
+                    if verbose:
+                        print('Done!')
+                    self.fisher_integrated_marginalized = cov_int_marg
+                error = self.fisher_integrated_marginalized[ind1, ind2, :]**0.5 
 
             K = Ks
-            error = error
 
         return K, error
    

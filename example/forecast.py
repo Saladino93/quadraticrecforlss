@@ -116,12 +116,14 @@ for v in variables_of_interest:
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf, sig_fnl])
 
-kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
+kf, sig_fnl_marg_int = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl)).T)
+np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf, sig_fnl_marg_int])
+
+
 
 
 
