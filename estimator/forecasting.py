@@ -153,13 +153,16 @@ class Forecaster(expression):
   
         spectra = {} 
 
+        
         gg = temp_cov[0, 0, :]
-        nn = temp_cov[1, 1, :]
-        gn = temp_cov[0, 1, :]
-
         spectra['Pgg'] = gg
-        spectra['Pgn'] = gn
-        spectra['Pnn'] = nn
+        try:
+            nn = temp_cov[1, 1, :]
+            gn = temp_cov[0, 1, :]
+            spectra['Pgn'] = gn
+            spectra['Pnn'] = nn
+        except:
+            a = 1
 
         if 'Plin' in legend.keys():
             Plin = var_values['Plin']
@@ -378,7 +381,7 @@ class Forecaster(expression):
                 f = self.fisher_numpy[i, j, :]
 
                 IntegratedFish = np.array([])
-
+                np.savetxt('fish'+str(a+b)+'.txt', np.c_[K, f])
                 for Kmin in Ks:
                     error = self.getIntegratedFisher(K, f, Kmin, kmax, volume)
                     IntegratedFish = np.append(IntegratedFish, error)
@@ -386,15 +389,17 @@ class Forecaster(expression):
                 f_int[i, j, :] = IntegratedFish
                 f_int[j, i, :] = f_int[i, j, :]
 
-           if verbose:
+            if verbose:
                 print('Done getting integrated error')
 
+            N = len(lista)
+            np.save('matrix.npy', f_int)
             # For each k_min, invert the Fisher matrix
             for i in range(f_int.shape[-1]):
                 matrix = f_int[..., i]
                 cov_int_marg[..., i] = np.linalg.inv(matrix)
-                error_inversion1 = np.max(abs(cov_int_marg[..., i]@matrix-np.eye(4)))
-                error_inversion2 = np.max(abs(matrix@cov_int_marg[..., i]-np.eye(4)))
+                error_inversion1 = np.max(abs(cov_int_marg[..., i]@matrix-np.eye(N)))
+                error_inversion2 = np.max(abs(matrix@cov_int_marg[..., i]-np.eye(N)))
                 # or can just check if m*minv = minv*m within some error
                 if (error_inversion1 > 1e-2) or (error_inversion2 > 1e-2):
                     print('WARNING: Fisher matrix inversion not accurate.')
@@ -474,8 +479,8 @@ class Forecaster(expression):
 
             if apply_filter:
                 lenK = len(K)
-                window_length = 2*int(lenK/10)+1 #make sure it is an odd number
-                FisherPerMode = savgol_filter(FisherPerMode, 37, 3, mode = 'nearest')
+                window_length = 7 #2*int(lenK/10)+1 #make sure it is an odd number
+                FisherPerMode = savgol_filter(FisherPerMode, window_length, 3) #, mode = 'nearest')
 
             function = scipy.interpolate.interp1d(K, FisherPerMode)
 

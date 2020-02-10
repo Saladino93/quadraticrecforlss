@@ -105,9 +105,26 @@ forecast.plot_cov(var_values, legend = legend_cov, title = title_cov, xlabel = x
 
 forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
 
-forecast.set_mpmath_integration_precision()
+forecast.set_mpmath_integration_precision(100)
 
 error_versions = {'Per mode not integrated ': {'marginalized': False, 'integrated': False}, 'Integrated marginalized': {'marginalized': False, 'integrated': True}}
 for v in variables_of_interest:
     forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
+
+
+
+kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume'])
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.array((kf,sig_fnl)).T)
+
+kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume'])
+np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.array((kf,sig_fnl)).T)
+
+
+
+
+
 
