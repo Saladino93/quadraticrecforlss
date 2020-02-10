@@ -72,4 +72,11 @@ forecast_config:
             title: 'Error'
             xlabel: '$K$ $(h Mpc^{-1})$'
             ylabel: '$\sigma_{f_nl}$'
+            xscale: 'linear' # "linear", "log", ...
+            yscale: 'log'
             output_name: 'error_'
+            title_cov: 'Powers'
+            xlabel_cov: '$K$ $(h Mpc^{-1})$'
+            ylabel_cov: '$P$ $(h^3 Mpc^{-3})$'
+            legend_cov: {'Plin': {'color': 'black', 'ls': '-'}, 'Pgg': {'color': 'green', 'ls': '-'}}
+            output_name_cov: 'power_'

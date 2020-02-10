@@ -41,7 +41,7 @@ survey_config:
         geometry:
                 # Survey volume in (Gpc/h)^3
                 volume: 30. # 100 Gpc^3 * (0.67/h)^3
-analysis_config:
+analysis_config:  #insert spacing feature for number of ks?
         mink_reconstruction: 0.051
         maxk_reconstruction: 0.15
         mink_analysis: 0.001
@@ -74,4 +74,11 @@ forecast_config:
             title: 'Error'
             xlabel: '$K$ $(h Mpc^{-1})$'
             ylabel: '$\sigma_{f_nl}$'
+            xscale: 'linear' # "linear", "log", ...
+            yscale: 'log'
             output_name: 'error_'
+            title_cov: 'Powers'
+            xlabel_cov: '$K$ $(h Mpc^{-1})$'
+            ylabel_cov: '$P$ $(h^3 Mpc^{-3})$'
+            legend_cov: {'Plin': {'color': 'black', 'ls': '-'}, 'Pgg': {'color': 'green', 'ls': '-'}, 'Pgn': {'color': 'red', 'ls': '-'}, 'Pnn': {'color': 'blue', 'ls': '-'}, 'shot': {'color': 'yellow', 'ls': '--'}, 'Ngg': {'color': 'orange', 'ls': '--'}} 
+            output_name_cov: 'power_'
