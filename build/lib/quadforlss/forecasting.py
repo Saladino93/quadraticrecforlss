@@ -298,7 +298,7 @@ class Forecaster(expression):
         fab = sp.zeros(*shape)
 
         fab_numpy = np.zeros((N, N, self.length_K))
-        
+
         if verbose:
             print('Calculating fisher matrix per mode')
 
@@ -322,7 +322,7 @@ class Forecaster(expression):
 
     def get_error(self, variable, marginalized = False, integrated = False,
                   kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False,
-                  verbose = True):
+                  verbose = True, interp_mode = 'cubic'):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -341,6 +341,9 @@ class Forecaster(expression):
             Survey volume, in (Gpc/h)^3 (default: 100).
         Ks: array, optional
             Kmin on which to calculate integrated value. (default: None) If None gets a value specified by object.
+        interp_mode : string, optional
+            Interpolation mode for per-k Fisher matrix. Same options as
+            scipy.interpolate.interp1d (default: 'cubic').
 
         NOTE: option marginalized = True and integrated = False not implemented for ill conditioned matrices due to numerical errors
             coming from machine precision.
@@ -362,25 +365,7 @@ class Forecaster(expression):
         combs = list(itertools.combinations_with_replacement(list(lista), 2))
 
         if integrated:
-
-# <<<<<<< HEAD
-#             # Make array of k_min values to consider
-#             Ks = np.arange(kmin, kmax, 0.001)
-#
-#             # Define empty array for Fisher values, and fetch parameter pairs
-#             shape = self.fisher_numpy.shape
-#             f_int = np.zeros((shape[0], shape[1], len(Ks)))
-#             cov_int_marg = f_int.copy()
-#             lista = self.fisher_list
-#             combs = list(itertools.combinations_with_replacement(list(lista), 2))
-#
-#             # For each parameter pair, get Fisher element for each k, and
-#             # do k integral
-#             for a, b in combs:
-#                 i, j = lista.index(a), lista.index(b)
-#                 f = self.fisher_numpy[i, j, :]
-# =======
-             # Make array of k_min values to consider
+            # Make array of k_min values to consider
             if Ks is None:
                 Ks = np.arange(kmin, kmax, 0.001)
 
@@ -407,53 +392,24 @@ class Forecaster(expression):
                     IntegratedFish = np.array([])
 
                     for Kmin in Ks:
-                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume)
+                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume,
+                                                         interp_mode=interp_mode)
                         IntegratedFish = np.append(IntegratedFish, error)
 
                     f_int[i, j, :] = IntegratedFish
                     f_int[j, i, :] = f_int[i, j, :]
 
                     self.fisher_integrated = f_int
-# >>>>>>> a061a12d75d95af2b6418f00d1be0b33292d4cfc
 
             if verbose:
                 print('Done getting integrated error')
 
-# <<<<<<< HEAD
-#                 for Kmin in Ks:
-#                     error = self.getIntregratedFisher(K, f, Kmin, kmax, volume)
-#                     IntegratedFish = np.append(IntegratedFish, error)
-#
-#                 f_int[i, j, :] = IntegratedFish
-#                 f_int[j, i, :] = f_int[i, j, :]
-#
-#             # For each k_min, invert the Fisher matrix
-#             for i in range(f_int.shape[-1]):
-#                 matrix = f_int[..., i]
-#                 cov_int_marg[..., i] = np.linalg.inv(matrix)
-#
-# =======
             N = len(lista)
-
-# >>>>>>> a061a12d75d95af2b6418f00d1be0b33292d4cfc
 
             # Get the errorbar, as either F_{ii}^{-0.5} in the unmarginalized
             # case, or (F^{-1})_{ii}^{0.5} in the marginalized case
             ind1, ind2 = lista.index(variable), lista.index(variable)
-# <<<<<<< HEAD
-#
-#             # Get the errorbar, as either F_{ii}^{-0.5} in the unmarginalized
-#             # case, or (F^{-1})_{ii}^{0.5} in the marginalized case
-#             if not marginalized:
-#                 # error = f_int[ind1, ind2, :]
-#                 error = f_int[ind1, ind2, :]**-0.5
-#             else:
-#                 # error = cov_int_marg[ind1, ind2, :]
-#                 error = cov_int_marg[ind1, ind2, :]**0.5
-#
-#             K = Ks
-#             # error = error**-0.5
-# =======
+
             error = self.fisher_integrated[ind1, ind2, :]**-0.5
 
             if marginalized:
@@ -477,7 +433,6 @@ class Forecaster(expression):
                 error = self.fisher_integrated_marginalized[ind1, ind2, :]**0.5
 
             K = Ks
-# >>>>>>> a061a12d75d95af2b6418f00d1be0b33292d4cfc
 
         return K, error
 
@@ -502,14 +457,15 @@ class Forecaster(expression):
     def set_mpmath_integration_precision(self, integration_prec = 53):
         mpmath.mp.prec = integration_prec
 
-    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False, scipy_mode = False):
+    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False,
+                            scipy_mode = False, interp_mode = 'cubic'):
         """Integrate per-mode Fisher matrix element in k, to get full Fisher matrix element.
 
         Given arrays of k values and corresponding Fisher matrix elements F(k), compute
             \frac{V}{(2\pi)^2} \int_{kmin}^{kmax} dk k^2 F(k) ,
         where V is the survey volume. The function actually first interpolates over
         the discrete supplied values of FisherPerMode, and then integrates the
-        interpolating function between kmin and kmax using scipy.integrate.quad.
+        interpolating function between kmin and kmax.
 
         Parameters
         ----------
@@ -523,6 +479,14 @@ class Forecaster(expression):
             Upper limit of k integral.
         V : float
             Survey volume.
+        apply_filter : bool, optional
+            Smooth the per-k Fisher matrix before integration (default: False).
+        scipy_mode : bool, optional
+            Integrate with scipy.integrate.quad. If False, integrate with
+            mpmath.quad. (Default: False).
+        interp_mode : string, optional
+            Interpolation mode for per-k Fisher matrix. Same options as
+            scipy.interpolate.interp1d (default: 'cubic').
 
         Returns
         -------
@@ -541,7 +505,7 @@ class Forecaster(expression):
                 window_length = 7 #2*int(lenK/10)+1 #make sure it is an odd number
                 FisherPerMode = savgol_filter(FisherPerMode, window_length, 3) #, mode = 'nearest')
 
-            function = scipy.interpolate.interp1d(K, FisherPerMode)
+            function = scipy.interpolate.interp1d(K, FisherPerMode, kind=interp_mode)
             if scipy_mode:
                 result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax, epsrel = 1e-15)
             else:
