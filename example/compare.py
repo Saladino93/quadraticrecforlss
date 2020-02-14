@@ -68,7 +68,7 @@ ax2.legend(loc = 'best', prop = {'size': 6})
 
 plt.subplots_adjust(hspace = 0.4)
 
-fig.savefig('comparing_'+data_1['name']+'_'+data_2['name']+'.png', dpi = 300)
+fig.savefig(base_dir+'comparing_configs/'+'comparing_'+data_1['name']+'_'+data_2['name']+'.png', dpi = 300)
 plt.close(fig)
 
 

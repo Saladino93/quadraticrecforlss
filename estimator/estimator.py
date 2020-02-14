@@ -252,14 +252,18 @@ class Estimator(object):
         return integral**-1.
 
 
-    def generateNs(self, K, minq, maxq, vegas_mode = False, verbose = True):
+    def generateNs(self, K, minq, maxq, listKeys = None, vegas_mode = False, verbose = True):
 
         values = self.keys
 
         if verbose:
             print('Keys are, ', self.keys)
 
-        listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+        if listKeys is None:
+            listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+
+        if verbose:
+            print('Key combs to calculate is, ', listKeys)
         
         retList = {}
 
@@ -267,6 +271,8 @@ class Estimator(object):
             retList[key1+","+key2] = []
 
         for a, b in listKeys:
+            if verbose:
+                print('Computing N integral for (%s,%s)' % (a,b))
             N = self.N(a, b, K, minq, maxq, vegas_mode)
             retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
 

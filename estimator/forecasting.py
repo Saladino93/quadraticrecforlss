@@ -163,6 +163,7 @@ class Forecaster(expression):
             gn = temp_cov[0, 1, :]
             spectra['Pgn'] = gn
             spectra['Pnn'] = nn
+            spectra['sh_bis'] = var_values['sh_bis']
         except:
             a = 1
 
@@ -322,7 +323,8 @@ class Forecaster(expression):
  
             
 
-    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False, verbose = True):
+    def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False, 
+        interp_mode = 'cubic', verbose = True):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -389,7 +391,7 @@ class Forecaster(expression):
                     IntegratedFish = np.array([])
                     
                     for Kmin in Ks:
-                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume)
+                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume, interp_mode = interp_mode) #maybe just interpolate once?
                         IntegratedFish = np.append(IntegratedFish, error)
                 
                     f_int[i, j, :] = IntegratedFish
@@ -454,7 +456,7 @@ class Forecaster(expression):
     def set_mpmath_integration_precision(self, integration_prec = 53):
         mpmath.mp.prec = integration_prec
 
-    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False, scipy_mode = False):
+    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False, scipy_mode = False, interp_mode = 'cubic'):
         """Integrate per-mode Fisher matrix element in k, to get full Fisher matrix element.
 
         Given arrays of k values and corresponding Fisher matrix elements F(k), compute
@@ -493,7 +495,7 @@ class Forecaster(expression):
                 window_length = 7 #2*int(lenK/10)+1 #make sure it is an odd number
                 FisherPerMode = savgol_filter(FisherPerMode, window_length, 3) #, mode = 'nearest')
 
-            function = scipy.interpolate.interp1d(K, FisherPerMode)
+            function = scipy.interpolate.interp1d(K, FisherPerMode, interp_mode)
 
             if scipy_mode:
                 result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax, epsrel = 1e-15)

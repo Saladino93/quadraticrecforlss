@@ -37,6 +37,7 @@ direc = base_dir+direc+'/'
 with open(direc+data_dir+dic_name, 'rb') as handle:
     dic = pickle.load(handle, encoding = 'latin1')
 
+#dic['Ngg']*=1e-2
 
 config = values['forecast_config']
 
@@ -58,13 +59,14 @@ for key, val in pics_config.items():
 dic['fnl'] = 0.
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
-
+'''
 Noisedic = {}
 
 #LOAD VARIABLES VALUES
 for a, b in combs:
     Noisedic[noise_prefix+a+b] = dic[noise_prefix+a+b]
     Noisedic[noise_prefix+b+a] = dic[noise_prefix+a+b]
+'''
 
 K = dic['K']
 
@@ -97,7 +99,6 @@ for x, y in combs:
 #here take new bias of the reconstructed field
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
-
 
 forecast.add_cov_matrix(cov_dict)
 forecast.plot_cov(var_values, legend = legend_cov, title = title_cov, xlabel = xlabel_cov, ylabel = ylabel_cov, output_name = direc+pics_dir+output_name_cov+'.png')

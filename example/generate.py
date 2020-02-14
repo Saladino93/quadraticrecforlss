@@ -95,6 +95,26 @@ maxkh = values['analysis_config']['maxk_analysis']
 minkhrec = values['analysis_config']['mink_reconstruction']
 maxkhrec = values['analysis_config']['maxk_reconstruction']
 
+specific_combs = values['analysis_config']['specific_combs']
+
+if specific_combs == '':
+   specific_combs = None
+else:
+   a = specific_combs[0]
+   b = specific_combs[1]
+
+   l = []
+
+   for i in a:
+      for j in b:
+            temp = tuple([i, j])
+            temp_ = tuple([j, i])
+            condition = (temp in l) or (temp_ in l)
+            if not condition:
+               l += [temp]
+   
+   specific_combs = l
+
 ''' GRAVITY MODEL PARAMETERS '''
 
 deltac = values['survey_config']['gravity_dynamics_pars']['deltac']
@@ -209,13 +229,17 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 K_of_interest = np.arange(minkh, maxkh, 0.001)
 
 #Now calculate different noise curves and store them inside the object
-est.generateNs(K_of_interest, minkhrec, maxkhrec, vegas_mode = vegas_mode)
+est.generateNs(K_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
 
 M = Mscipy(est.Krange)
 
 values = np.array(list(est.keys))
 
-listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+if specific_combs is None:
+    listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+else:
+    listKeys = specific_combs
+
 
 dic = {}
 
@@ -230,6 +254,32 @@ for a, b in listKeys:
 
 new_bias = 1000 ##to be decided if I have to use sympy also here
 
+'''
+#Now calculate shot noise contributions to the bispectrum
+Schematically speaking
+int_q g_a*sum of terms
+ g_a = N_a * f_a/(2*P*P)
+'''
+
+print('Getting bispectrum shot noise contribution')
+
+Ngg = est.getN('g', 'g')
+
+a = 'g'
+mu_sign = 1.
+
+shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
+
+sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy(K_of_interest)*shot
+
+shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+
+sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
+
+sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 #This contribution goes to the cross spectrum between new field and original one
+
+
 for vv in variables_list:
     if 'N' not in vv:
         dic[vv] = globals()[vv]
@@ -239,32 +289,7 @@ with open(direc+data_dir+dic_name, 'wb') as handle:
 
 print('Done')
 
-
 '''
-#Now calculate shot noise contributions to the bispectrum
-Schematically speaking
-int_q g_a*sum of terms
- g_a = N_a * f_a/(2*P*P)
-'''
-
-'''
-Ngg = est.getN('g', 'g')
-
-a = 'g'
-mu_sign = 1.
-
-shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
-
-sh_bis_3 = Pnlinsign_scipy(K_of_interest)*(shotfactor_zeroPpower*Ngg)*shot
-
-shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-
-sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
-
-sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 #This contribution goes to the cross spectrum between new field and original one
-
-
 #Now calculate shot noise contributions to the trispectrum
 
 shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
