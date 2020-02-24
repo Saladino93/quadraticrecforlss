@@ -322,7 +322,7 @@ class Forecaster(expression):
 
     def get_error(self, variable, marginalized = False, integrated = False,
                   kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False,
-                  verbose = True, interp_mode = 'cubic'):
+                  verbose = True, scipy_mode = False, interp_mode = 'cubic', log_integral = False):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -341,9 +341,15 @@ class Forecaster(expression):
             Survey volume, in (Gpc/h)^3 (default: 100).
         Ks: array, optional
             Kmin on which to calculate integrated value. (default: None) If None gets a value specified by object.
+        scipy_mode : bool, optional
+            Integrate with scipy.integrate.quad. If False, integrate with
+            mpmath.quad. (Default: False).
         interp_mode : string, optional
             Interpolation mode for per-k Fisher matrix. Same options as
             scipy.interpolate.interp1d (default: 'cubic').
+        log_integral : bool, optional
+            Whether to integrate in k (False) or log(k) (True).
+            Default: False.
 
         NOTE: option marginalized = True and integrated = False not implemented for ill conditioned matrices due to numerical errors
             coming from machine precision.
@@ -393,7 +399,7 @@ class Forecaster(expression):
 
                     for Kmin in Ks:
                         error = self.getIntegratedFisher(K, f, Kmin, kmax, volume,
-                                                         interp_mode=interp_mode)
+                                scipy_mode=scipy_mode, interp_mode=interp_mode, log_integral=log_integral)
                         IntegratedFish = np.append(IntegratedFish, error)
 
                     f_int[i, j, :] = IntegratedFish
@@ -458,7 +464,7 @@ class Forecaster(expression):
         mpmath.mp.prec = integration_prec
 
     def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False,
-                            scipy_mode = False, interp_mode = 'cubic'):
+                            scipy_mode = False, interp_mode = 'cubic', log_integral = False):
         """Integrate per-mode Fisher matrix element in k, to get full Fisher matrix element.
 
         Given arrays of k values and corresponding Fisher matrix elements F(k), compute
@@ -487,6 +493,9 @@ class Forecaster(expression):
         interp_mode : string, optional
             Interpolation mode for per-k Fisher matrix. Same options as
             scipy.interpolate.interp1d (default: 'cubic').
+        log_integral : bool, optional
+            Whether to integrate in k (False) or log(k) (True).
+            Default: False.
 
         Returns
         -------
@@ -505,18 +514,33 @@ class Forecaster(expression):
                 window_length = 7 #2*int(lenK/10)+1 #make sure it is an odd number
                 FisherPerMode = savgol_filter(FisherPerMode, window_length, 3) #, mode = 'nearest')
 
-            function = scipy.interpolate.interp1d(K, FisherPerMode, kind=interp_mode)
+            function = scipy.interpolate.interp1d(K, FisherPerMode, kind=interp_mode,
+                                                  bounds_error=False, fill_value=0)
             if scipy_mode:
-                result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax, epsrel = 1e-15)
+                if log_integral:
+                    result = scipy.integrate.quad(lambda L: function(np.exp(L))*(np.exp(L))**3.,
+                                                    np.log(kmin), np.log(kmax), epsrel = 1e-15)
+                else:
+                    result = scipy.integrate.quad(lambda x: function(x)*x**2.,
+                                                    kmin, kmax, epsrel = 1e-15)
             else:
                 ## A bit slow but it is worth it for numerical precision
-                def f(x):
-                    x = float(x)
-                    y = function(x)*x**2.
-                    return mpmath.mpf(1)*y
+                if log_integral:
+                    def f(L):
+                        L = float(L)
+                        y = function(np.exp(L))*np.exp(L)**3.
+                        return mpmath.mpf(1)*y
 
-                resultmp = mpmath.quad(f, [kmin, kmax])
-                result = [resultmp]
+                    resultmp = mpmath.quad(f, [np.log(kmin), np.log(kmax)])
+                    result = [resultmp]
+                else:
+                    def f(x):
+                        x = float(x)
+                        y = function(x)*x**2.
+                        return mpmath.mpf(1)*y
+
+                    resultmp = mpmath.quad(f, [kmin, kmax])
+                    result = [resultmp]
 
             result = result[0]*V/(4.*np.pi**2.)
             return result

@@ -68,7 +68,7 @@ pics_config = config['pics_config']
 for key, val in pics_config.items():
     exec(key + '=val')
 
-dic['fnl'] = 0.
+# dic['fnl'] = 0.
 
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
@@ -127,8 +127,8 @@ legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
               'Ngg': {'color': 'green', 'ls': '-'}}
 output_name_cov = 'test_cov'
 
-# forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
-#                   output_name = direc+pics_dir+output_name_cov+'.pdf')
+forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
+                  output_name = direc+pics_dir+output_name_cov+'.pdf')
 
 forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
 
@@ -136,10 +136,10 @@ forecast.set_mpmath_integration_precision(100)
 
 # print(forecast.cov_matrix[0,1])
 # print(forecast.K)
-# print(forecast.fisher_numpy[:,:,-5])
-print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,0,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
-print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
-print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+# print(forecast.fisher_numpy[:,:,4])
+# print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,0,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+# print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[0,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
+# print(forecast.getIntegratedFisher(forecast.K, forecast.fisher_numpy[1,1,:], 0.045,0.05, 1e9*values['survey_config']['geometry']['volume']))
 # for i in range(len(variables_list_fisher)):
 #     for j in range(i,len(variables_list_fisher)):
 #         plt.plot(forecast.K,forecast.fisher_numpy[i,j,:],label='%d,%d' % (i,j))
@@ -155,12 +155,16 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl*fnlScalin
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
-              volume = values['survey_config']['geometry']['volume'])
+              volume = values['survey_config']['geometry']['volume'], log_integral = True)
 np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
+
+# print(kf[0],sig_fnl[0])
+# print(forecast.getIntegratedFisher(K, forecast.fisher_numpy[1,1, :], 0.001,0.1,
+#                                 values['survey_config']['geometry']['volume']*1e9) )
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
-              volume = values['survey_config']['geometry']['volume'])
+              volume = values['survey_config']['geometry']['volume'], log_integral = True)
 np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 error_versions = {
