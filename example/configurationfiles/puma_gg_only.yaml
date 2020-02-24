@@ -1,0 +1,78 @@
+name: 'puma_gg_only'
+file_config:
+        base_dir: 'output/'
+        data_dir: 'data_dir/'
+        pics_dir: 'pics/'
+        dic_name: 'calculations.pkl'
+        # P_linear at desired z, stored with k in h/Mpc and P in Mpc^3/h^3
+        linear_power_name: 'linear_power.txt'
+        # P_nonlinear at desired z, stored with k in h/Mpc and P in Mpc^3/h^3
+        nonlinear_power_name: 'nonlinear_power.txt'
+        # M at desired z
+        M_name: 'M.txt'
+data_creation_config:
+        npoints: 10000
+        # Min k for P, M generation, in h/Mpc
+        mink: 1e-7
+        # Max k for P, M generation, in h/Mpc
+        maxk: 1.
+        z: 4.
+        cosmology: 'Planck15' #can be: Planck15, Planck13
+survey_config:
+        primordial_pars:
+                fnl: 1.
+        gravity_dynamics_pars:
+                deltac: 1.42
+                # a1 = 1 in spherical collapse
+                a1: 1.
+                # a2 = -17/21 in spherical collapse
+                a2: -0.8095238095
+        tracer_properties:
+                mhalo: 0.773
+                # Mean number density of sources, in (h/Mpc)^3
+                nhalo: 2.7e-2 # 8 10^-3 Mpc^-3 * (h/0.67)^3
+                biases: # if blank use a theory expression
+                        b10: 2.8
+                        b01: ''
+                        b11: ''
+                        b02: ''
+                        b20: 0.94
+                        bs2: ''
+        geometry:
+                # Survey volume in (Gpc/h)^3
+                volume: 285 # 950 Gpc^3 * (0.67/h)^3
+analysis_config:
+        mink_reconstruction: 0.13
+        maxk_reconstruction: 0.35
+        mink_analysis: 0.001
+        maxk_analysis: 0.12
+        variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
+                                'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
+        biases_definitions: {
+          'g': 'b10+21/17*b20',
+          's': 'b10',
+          't': 'b10+7/2*bs2',
+          'phiphi': 'fnl*b10',
+          'c01': 'fnl*2*deltac*(b10-1)',
+          'c11': 'fnl*(2./a1)*(deltac*(b20-2*(a1+a2)*(b10-1.))-a1**2.*(b10-1.))+2.*fnl*deltac*(b10-1.)',
+          'c02': 'fnl**2*4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(b10-1.))-2.*(b10-1.))'
+        }
+        #kernels_definitions: {'g': '5./7.', 's': '0.5*(q2/q1+q1/q2)*mu', 't': '(2./7.)*mu**2.', 'phiphi': '', '01', '11', '02'}
+        noise_prefix: 'N'
+        new_bias_expr: 'b10*(g+s*Ngg/Ngs+t*Ngg/Ngt+phiphi*(Ngg/Nphiphig)+c01*(Ngg/Nc01g)+c11*(Ngg/Nc11g)+c02*(Ngg/Nc02g))'
+forecast_config:
+        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin',
+                         'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs',
+                         'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
+        #best thing if the script automatically detects the variables from the expressions
+        #should also add shot bis and tris
+        variables_list_fisher: ['b10', 'fnl']
+        cov_dict: {
+          'Pgg': '(b10+fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo'
+        }
+        variables_of_interest: ['fnl']
+        pics_config:
+            title: 'Error'
+            xlabel: '$K$ $(h Mpc^{-1})$'
+            ylabel: '$\sigma_{f_nl}$'
+            output_name: 'error_'

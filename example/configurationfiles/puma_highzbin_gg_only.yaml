@@ -1,4 +1,4 @@
-name: 'highz_gg_only'
+name: 'puma_highzbin_gg_only'
 file_config:
         base_dir: 'output/'
         data_dir: 'data_dir/'
@@ -16,7 +16,7 @@ data_creation_config:
         mink: 1e-7
         # Max k for P, M generation, in h/Mpc
         maxk: 1.
-        z: 3.5
+        z: 5.5
         cosmology: 'Planck15' #can be: Planck15, Planck13
 survey_config:
         primordial_pars:
@@ -30,23 +30,24 @@ survey_config:
         tracer_properties:
                 mhalo: 0.773
                 # Mean number density of sources, in (h/Mpc)^3
-                nhalo: 6.6e-4 # 2 10^-4 Mpc^-3 * (h/0.67)^3
+                nhalo: 2.8e-2 # 8.4 10^-3 Mpc^-3 * (h/0.67)^3
                 biases: # if blank use a theory expression
-                        b10: 4.9
+                        b10: 3.7
                         b01: ''
                         b11: ''
                         b02: ''
-                        b20: 6.6
+                        b20: 2.8
                         bs2: ''
         geometry:
                 # Survey volume in (Gpc/h)^3
-                volume: 135. # 450 Gpc^3 * (0.67/h)^3
+                volume: 60 # 203 Gpc^3 * (0.67/h)^3
 analysis_config:
-        mink_reconstruction: 0.11
-        maxk_reconstruction: 0.3
+        mink_reconstruction: 0.16
+        maxk_reconstruction: 0.47
         mink_analysis: 0.001
-        maxk_analysis: 0.1
-        variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac', 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
+        maxk_analysis: 0.15
+        variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
+                                'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
         biases_definitions: {
           'g': 'b10+21/17*b20',
           's': 'b10',
@@ -60,7 +61,9 @@ analysis_config:
         noise_prefix: 'N'
         new_bias_expr: 'b10*(g+s*Ngg/Ngs+t*Ngg/Ngt+phiphi*(Ngg/Nphiphig)+c01*(Ngg/Nc01g)+c11*(Ngg/Nc11g)+c02*(Ngg/Nc02g))'
 forecast_config:
-        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin', 'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs', 'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
+        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin',
+                         'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs',
+                         'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
         #best thing if the script automatically detects the variables from the expressions
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl']
