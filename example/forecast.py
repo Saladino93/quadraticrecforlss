@@ -43,6 +43,7 @@ config = values['forecast_config']
 
 variables_list= config['variables_list']
 variables_list_fisher = config['variables_list_fisher']
+priors = config['priors']
 cov_dict = config['cov_dict']
 
 variables_of_interest = config['variables_of_interest']
@@ -77,7 +78,7 @@ for vv in variables_list:
 
 ###### FORECAST ######
 
-forecast = forecasting.Forecaster(K, *variables_list)
+forecast = forecasting.Forecaster(K, priors, *variables_list)
 
 #here take biases definitions and convert them to sympy
 for x in terms:

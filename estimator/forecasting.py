@@ -77,7 +77,7 @@ class Forecaster(expression):
     """Class that computes Fisher matrix and related quantities.
     """
     
-    def __init__(self, K, *args):
+    def __init__(self, K, priors, *args):
         """
         Parameters
         ----------
@@ -90,6 +90,12 @@ class Forecaster(expression):
         self.length_K = len(K)
         self.fisher_integrated = None
         self.fisher_integrated_marginalized = None
+        self.inv_priors = {}
+        for key, value in priors.items():
+            if value == '':
+                self.inv_priors[key] = 0.
+            else:
+                self.inv_priors[key] = 1./value**2.
         expression.__init__(self, *args)
 
     def add_cov_matrix(self, covariance_matrix_dict, ):
@@ -395,7 +401,7 @@ class Forecaster(expression):
                         error = self.getIntegratedFisher(K, f, Kmin, kmax, volume, interp_mode = interp_mode) #maybe just interpolate once?
                         IntegratedFish = np.append(IntegratedFish, error)
                 
-                    f_int[i, j, :] = IntegratedFish
+                    f_int[i, j, :] = IntegratedFish+self.inv_priors[a]*int(i==j)
                     f_int[j, i, :] = f_int[i, j, :]
 
                     self.fisher_integrated = f_int
@@ -450,7 +456,7 @@ class Forecaster(expression):
         """
         lista = self.fisher_list
         i, j = lista.index(variable), lista.index(variable) 
-        error = (self.fisher_numpy[i, j])**-0.5
+        error = (self.fisher_numpy[i, j]+self.inv_priors[variable])**-0.5
         return error       
 
 
