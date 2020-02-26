@@ -30,7 +30,7 @@ survey_config:
         tracer_properties:
                 mhalo: 0.773
                 # Mean number density of sources, in (h/Mpc)^3
-                nhalo: 6.6e-4 # 2 10^-4 Mpc^-3 * (h/0.67)^3
+                nhalo: 6.6e-4 # 10^-4 Mpc^-3 * (h/0.67)^3
                 biases: # if blank use a theory expression
                         b10: 4.9
                         b01: ''
@@ -46,6 +46,7 @@ analysis_config:
         maxk_reconstruction: 0.3
         mink_analysis: 0.001
         maxk_analysis: 0.1
+        specific_combs: [['g'], ['g']]
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac', 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
         biases_definitions: {
           'g': 'b10+21/17*b20',
@@ -64,6 +65,7 @@ forecast_config:
         #best thing if the script automatically detects the variables from the expressions
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl']
+        priors: {'b10': '', 'fnl': ''}
         cov_dict: {
           'Pgg': '(b10+fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo'
         }

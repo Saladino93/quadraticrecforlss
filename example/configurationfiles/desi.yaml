@@ -46,6 +46,7 @@ analysis_config:  #insert spacing feature for number of ks?
         maxk_reconstruction: 0.15
         mink_analysis: 0.001
         maxk_analysis: 0.05
+        specific_combs: [['g'], ['g', 's', 't', 'phiphi', 'c01', 'c11', 'c02']] #which combs to calculate? if nothing make all possible combs for Nab
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac', 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
         biases_definitions: {
           'g': 'b10+21/17*b20',
@@ -60,14 +61,17 @@ analysis_config:  #insert spacing feature for number of ks?
         noise_prefix: 'N'
         new_bias_expr: 'b10*(g+s*Ngg/Ngs+t*Ngg/Ngt+phiphi*(Ngg/Nphiphig)+c01*(Ngg/Nc01g)+c11*(Ngg/Nc11g)+c02*(Ngg/Nc02g))'
 forecast_config:
-        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin', 'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs', 'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
+        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin', 'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs', 'Nc02g', 'Nc01g', 'Nc11g', 'new_bias', 'sh_bis', 'sh_tris']        
         #best thing if the script automatically detects the variables from the expressions
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl', 'b20', 'bs2']
+        #if you want a gaussian prior: {'value', 'sigma'} otherwise put just the value for flat infiniteprior and leave blank for sigma
+        priors: {'b10': '', 'fnl': '', 'b20': 0.03, 'bs2': ''}
+        
         cov_dict: {
           'Pgg': '(b10+fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo',
-          'Pgn': 'new_bias*(b10+fnl*2*deltac*(b10-1)/M)*Plin',
-          'Pnn': 'new_bias**2*Plin+Ngg'
+          'Pgn': 'new_bias*(b10+fnl*2*deltac*(b10-1)/M)*Plin+sh_bis',
+          'Pnn': 'new_bias**2*Plin+Ngg+sh_tris'
         }
         variables_of_interest: ['fnl']
         pics_config:
@@ -80,5 +84,5 @@ forecast_config:
             title_cov: 'Powers'
             xlabel_cov: '$K$ $(h Mpc^{-1})$'
             ylabel_cov: '$P$ $(h^3 Mpc^{-3})$'
-            legend_cov: {'Plin': {'color': 'black', 'ls': '-'}, 'Pgg': {'color': 'green', 'ls': '-'}, 'Pgn': {'color': 'red', 'ls': '-'}, 'Pnn': {'color': 'blue', 'ls': '-'}, 'shot': {'color': 'yellow', 'ls': '--'}, 'Ngg': {'color': 'orange', 'ls': '--'}} 
+            legend_cov: {'Plin': {'color': 'black', 'ls': '-'}, 'Pgg': {'color': 'green', 'ls': '-'}, 'Pgn': {'color': 'red', 'ls': '-'}, 'Pnn': {'color': 'blue', 'ls': '-'}, 'shot': {'color': 'yellow', 'ls': '--'}, 'Ngg': {'color': 'orange', 'ls': '--'}, 'sh_bis': {'color': 'cyan', 'ls': '--'}, 'sh_tris': {'color': 'magenta', 'ls': '--'}}
             output_name_cov: 'power_'
