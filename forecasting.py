@@ -163,8 +163,6 @@ class Forecaster(expression):
             gn = temp_cov[0, 1, :]
             spectra['Pgn'] = gn
             spectra['Pnn'] = nn
-            spectra['sh_bis'] = var_values['sh_bis']
-            spectra['sh_tris'] = var_values['sh_tris']
         except:
             a = 1
 
@@ -325,7 +323,7 @@ class Forecaster(expression):
             
 
     def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False, 
-        interp_mode = 'cubic', verbose = True):
+                  interp_mode = 'cubic', verbose = True):
         """Get Fisher errorbar on specific parameter.
 
         Parameters

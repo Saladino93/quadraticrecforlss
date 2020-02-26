@@ -279,17 +279,8 @@ sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
 
 sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 #This contribution goes to the cross spectrum between new field and original one
 
+print('Getting trispectrum shot noise contribution')
 
-for vv in variables_list:
-    if 'N' not in vv:
-        dic[vv] = globals()[vv]
-
-with open(direc+data_dir+dic_name, 'wb') as handle:
-    pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-print('Done')
-
-'''
 #Now calculate shot noise contributions to the trispectrum
 
 shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
@@ -307,5 +298,16 @@ sh_tris_3_a = (shotfactor_onePpower*Ngg)**2.*shot
 
 sh_tris_3_b = (shotfactor_zeroPpower*Ngg)*(shotfactor_twoPpower*Ngg)*shot
 
-sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b
-'''
+sh_tris_4_a = shotfactor_double*Ngg**2.*shot**2.
+sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy(K_of_interest)
+
+shot_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
+
+for vv in variables_list:
+    if 'N' not in vv:
+        dic[vv] = globals()[vv]
+
+with open(direc+data_dir+dic_name, 'wb') as handle:
+    pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+print('Done')
