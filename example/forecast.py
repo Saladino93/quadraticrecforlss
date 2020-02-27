@@ -46,6 +46,7 @@ direc = base_dir+direc+'/'
 with open(direc+data_dir+dic_name, 'rb') as handle:
     dic = pickle.load(handle, encoding = 'latin1')
 
+
 # Get lists of variables: all defined variables, variables varying in Fisher
 # matrix, dict of auto and cross spectra for data covariance matrix, and
 # and list of variables we want to forecast for
@@ -53,6 +54,7 @@ config = values['forecast_config']
 
 variables_list= config['variables_list']
 variables_list_fisher = config['variables_list_fisher']
+priors = config['priors']
 cov_dict = config['cov_dict']
 
 variables_of_interest = config['variables_of_interest']
@@ -72,13 +74,14 @@ for key, val in pics_config.items():
 
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
-
+'''
 Noisedic = {}
 
 #LOAD VARIABLES VALUES
 for a, b in combs:
     Noisedic[noise_prefix+a+b] = dic[noise_prefix+a+b]
     Noisedic[noise_prefix+b+a] = dic[noise_prefix+a+b]
+'''
 
 K = dic['K']
 
@@ -97,7 +100,7 @@ except KeyError:
 ###### FORECAST ######
 
 # Define Forecaster object
-forecast = forecasting.Forecaster(K, *variables_list)
+forecast = forecasting.Forecaster(K, priors, *variables_list)
 
 #here take biases definitions and convert them to sympy
 for x in terms:

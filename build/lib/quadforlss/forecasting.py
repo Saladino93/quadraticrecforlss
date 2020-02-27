@@ -75,7 +75,7 @@ class Forecaster(expression):
     """Class that computes Fisher matrix and related quantities.
     """
 
-    def __init__(self, K, *args):
+    def __init__(self, K, priors, *args):
         """
         Parameters
         ----------
@@ -83,11 +83,19 @@ class Forecaster(expression):
             List of k values to use in forecast.
         args : list
             List of variables we ultimately want to forecast for.
+        priors : dict
+            Dictionary of Gaussian priors for variables.
         """
         self.K = K
         self.length_K = len(K)
         self.fisher_integrated = None
         self.fisher_integrated_marginalized = None
+        self.inv_priors = {}
+        for key, value in priors.items():
+            if value == '':
+                self.inv_priors[key] = 0.
+            else:
+                self.inv_priors[key] = 1./value**2.
         expression.__init__(self, *args)
 
     def add_cov_matrix(self, covariance_matrix_dict):
@@ -162,6 +170,8 @@ class Forecaster(expression):
             gn = temp_cov[0, 1, :]
             spectra['Pgn'] = gn
             spectra['Pnn'] = nn
+            spectra['sh_bis'] = var_values['sh_bis']
+            spectra['sh_tris'] = var_values['sh_tris']
         except:
             a = 1
 
@@ -261,7 +271,9 @@ class Forecaster(expression):
 
     def get_fisher_matrix(self, variables_list = [], var_values = None, verbose = True):
         """Get per-k Fisher matrix, as a matrix of numpy functions.
-          Symbolic form deprecated for now.
+
+        Symbolic form deprecated for now.
+
         Parameters
         ----------
         variables_list : list, optional
@@ -402,7 +414,7 @@ class Forecaster(expression):
                                 scipy_mode=scipy_mode, interp_mode=interp_mode, log_integral=log_integral)
                         IntegratedFish = np.append(IntegratedFish, error)
 
-                    f_int[i, j, :] = IntegratedFish
+                    f_int[i, j, :] = IntegratedFish+self.inv_priors[a]*int(i==j)
                     f_int[j, i, :] = f_int[i, j, :]
 
                     self.fisher_integrated = f_int
@@ -457,8 +469,9 @@ class Forecaster(expression):
         """
         lista = self.fisher_list
         i, j = lista.index(variable), lista.index(variable)
-        error = (self.fisher_numpy[i, j])**-0.5
+        error = (self.fisher_numpy[i, j]+self.inv_priors[variable])**-0.5
         return error
+
 
     def set_mpmath_integration_precision(self, integration_prec = 53):
         mpmath.mp.prec = integration_prec

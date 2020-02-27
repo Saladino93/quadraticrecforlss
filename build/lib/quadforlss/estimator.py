@@ -520,7 +520,8 @@ class Estimator(object):
         return integral**-1.
 
 
-    def generateNs(self, K, minq, maxq, vegas_mode = False, verbose = True):
+    def generateNs(self, K, minq, maxq, listKeys = None, vegas_mode = False,
+                    verbose = True):
         """Generate N_{ab} values at a list of K values and for all possible (a,b) pairs.
 
         The N matrix is stored as self.Nmatrix, and the K list as self.Krange.
@@ -530,9 +531,12 @@ class Estimator(object):
         K : ndarray(float)
             Array of K values to use.
         minq : float
-            lower limit for q integral.
+            Lower limit for q integral.
         maxq : float
-            upper limit for q integral.
+            Upper limit for q integral.
+        listKeys : array, optional
+            2xN list of N mode-couplings to compute N_{ab} for.
+            If not specified, all possible pairs are used.
         vegas_mode : bool, optional
             Whether to integrate using Vegas or scipy (default: False).
         verbose : bool, optional
@@ -543,7 +547,11 @@ class Estimator(object):
         if verbose:
             print('Keys are, ', self.keys)
 
-        listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+        if listKeys is None:
+            listKeys = list(itertools.combinations_with_replacement(list(values), 2))
+
+        if verbose:
+            print('Key combs to calculate is, ', listKeys)
 
         retList = {}
 
