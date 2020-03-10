@@ -181,3 +181,18 @@ forecast.plot_forecast('fnl', error_versions,
                         xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
                         output_name = direc+pics_dir+output_name+'test_forecast.pdf',
                         rescale_y = fnlScaling)
+
+
+b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]
+if True:
+    for frac_prior in b2_bs2_frac_prior_list:
+        print('Recomputing marginalized forecasts with fractional b2,bs2 priors of %g' \
+                % frac_prior)
+        for v in ['b20','bs2']:
+            forecast.inv_priors[v] = 1 / (var_values[v]*frac_prior)**2.
+
+        kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
+                      recalculate=True, kmin = K.min(), kmax = K.max(),
+                      volume = values['survey_config']['geometry']['volume'], log_integral = True)
+        np.savetxt(direc+data_dir+'sigma_fnl_marg_int_fracprior%g.dat' % frac_prior,
+                    np.c_[kf,sig_fnl*fnlScaling])
