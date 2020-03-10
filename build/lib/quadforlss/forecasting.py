@@ -351,6 +351,9 @@ class Forecaster(expression):
             Maximum value of long-mode k_min to use (default: 0.05).
         volume : float, optional
             Survey volume, in (Gpc/h)^3 (default: 100).
+        recalculate : bool, optional
+            Whether to recompute integrated Fisher matrix if it exists already
+            (default: False).
         Ks: array, optional
             Kmin on which to calculate integrated value. (default: None) If None gets a value specified by object.
         scipy_mode : bool, optional
