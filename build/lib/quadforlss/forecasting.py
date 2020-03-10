@@ -334,7 +334,8 @@ class Forecaster(expression):
 
     def get_error(self, variable, marginalized = False, integrated = False,
                   kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False,
-                  verbose = True, scipy_mode = False, interp_mode = 'cubic', log_integral = False):
+                  verbose = True, scipy_mode = False, interp_mode = 'cubic',
+                  log_integral = False, mu_limit = None):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -365,6 +366,11 @@ class Forecaster(expression):
         log_integral : bool, optional
             Whether to integrate in k (False) or log(k) (True).
             Default: False.
+        mu_limit : float, optional
+            If specified, when doing k integral of Fisher matrix, only integrate
+            mu in within [-1, -mu_limit] and [mu_limit, 1]. Since we assume
+            that the integrand is rotationally invariant, this corresponds to
+            scaling the integral by (1-mu_limit). (Default: None)
 
         NOTE: option marginalized = True and integrated = False not implemented for ill conditioned matrices due to numerical errors
             coming from machine precision.
@@ -373,6 +379,11 @@ class Forecaster(expression):
         if marginalized and not integrated:
             print('Marginalized per mode error not implemented!')
             return 0.
+
+        # If mu_limit is specified, make sure it is between 0 and 1
+        if mu_limit is not None:
+            if mu_limit > 1. or mu_limit < 0.:
+                raise InputError('Must have 0 <= mu_limit <= 1!')
 
         # Convert volume from Gpc^3 to Mpc^3
         volume *= 10**9
@@ -415,7 +426,16 @@ class Forecaster(expression):
                     for Kmin in Ks:
                         error = self.getIntegratedFisher(K, f, Kmin, kmax, volume,
                                 scipy_mode=scipy_mode, interp_mode=interp_mode, log_integral=log_integral)
+
+                        # If using mu_limit, scale integrated result by 1-mu_limit,
+                        # which is equivalent to only integrating mu within [-1,-mu_limit]
+                        # and [mu_limit,1] for a rotationally symmetric integrand
+                        if mu_limit is not None:
+                            error *= (1.-mu_limit)
+
                         IntegratedFish = np.append(IntegratedFish, error)
+
+
 
                     f_int[i, j, :] = IntegratedFish+self.inv_priors[a]*int(i==j)
                     f_int[j, i, :] = f_int[i, j, :]

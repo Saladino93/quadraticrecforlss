@@ -13,6 +13,8 @@ import sympy as sp
 
 import numpy as np
 
+from scipy.interpolate import interp1d
+
 import itertools
 
 import matplotlib.pyplot as plt
@@ -97,6 +99,30 @@ try:
 except KeyError:
     fnlScaling = 1
 
+# If file containing N_ab scaling fractions (as an effective way of
+# accounting for a foreground wedge) is specified, import it and create
+# an interpolating function in k.
+if 'Nab_wedge_scaling_fractions' in config.keys():
+    print('Scaling N_ab curves to account for lost modes due to foreground wedge')
+    Nab_wedge_frac_data = np.loadtxt(config['Nab_wedge_scaling_fractions']).T
+    Nab_wedge_fraction = interp1d(Nab_wedge_frac_data[0], Nab_wedge_frac_data[1])
+
+# For each stored N_ab curve, divide it by the N_ab scaling fraction at
+# the specified k. This divides the noise curves by the fraction of modes that
+# are outside of the wedge, which should be a decent approximation for the
+# effect of the modes that are lost to the wedge.
+for vv in var_values.keys():
+    if vv[0] == "N":
+        print('Rescaling %s' % vv)
+        var_values[vv] /= Nab_wedge_fraction(K)
+
+# If a mu_limit is specified, grab it
+mu_limit = None
+if 'fisher_mu_limit' in config.keys():
+    mu_limit = config['fisher_mu_limit']
+    print('Fisher mu limit found: %g' % mu_limit)
+
+
 ###### FORECAST ######
 
 # Define Forecaster object
@@ -158,7 +184,8 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl*fnlScalin
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
-              volume = values['survey_config']['geometry']['volume'], log_integral = True)
+              volume = values['survey_config']['geometry']['volume'],
+              log_integral = True, mu_limit = mu_limit)
 np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 # print(kf[0],sig_fnl[0])
@@ -167,7 +194,8 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
-              volume = values['survey_config']['geometry']['volume'], log_integral = True)
+              volume = values['survey_config']['geometry']['volume'],
+              log_integral = True, mu_limit = mu_limit)
 np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 error_versions = {
@@ -184,7 +212,7 @@ forecast.plot_forecast('fnl', error_versions,
 
 
 b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]
-if True:
+if False:
     for frac_prior in b2_bs2_frac_prior_list:
         print('Recomputing marginalized forecasts with fractional b2,bs2 priors of %g' \
                 % frac_prior)
@@ -193,6 +221,7 @@ if True:
 
         kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
                       recalculate=True, kmin = K.min(), kmax = K.max(),
-                      volume = values['survey_config']['geometry']['volume'], log_integral = True)
+                      volume = values['survey_config']['geometry']['volume'],
+                      log_integral = True, mu_limit = mu_limit)
         np.savetxt(direc+data_dir+'sigma_fnl_marg_int_fracprior%g.dat' % frac_prior,
                     np.c_[kf,sig_fnl*fnlScaling])
