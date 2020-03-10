@@ -46,6 +46,8 @@ analysis_config:
         maxk_reconstruction: 0.35
         mink_analysis: 0.001
         maxk_analysis: 0.12
+        specific_combs: [['g'], ['g', 's', 't', 'phiphi', 'c01', 'c11', 'c02']]
+        #which combs to calculate? if nothing make all possible combs for Nab
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
                                 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
         biases_definitions: {
@@ -63,14 +65,18 @@ analysis_config:
 forecast_config:
         variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin',
                          'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs',
-                         'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
+                         'Nc02g', 'Nc01g', 'Nc11g', 'new_bias', 'sh_bis', 'sh_tris',
+                         'fnlScaling']
         #best thing if the script automatically detects the variables from the expressions
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl', 'b20', 'bs2']
+        #if you want a gaussian prior: {'value', 'sigma'} otherwise put just the value for flat infiniteprior and leave blank for sigma
+        priors: {'b10': '', 'fnl': '', 'b20': '', 'bs2': ''}
+
         cov_dict: {
           'Pgg': '(b10+fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo',
-          'Pgn': 'new_bias*(b10+fnl*2*deltac*(b10-1)/M)*Plin',
-          'Pnn': 'new_bias**2*Plin+Ngg'
+          'Pgn': 'new_bias*(b10+fnl*2*deltac*(b10-1)/M)*Plin+sh_bis',
+          'Pnn': 'new_bias**2*Plin+Ngg+sh_tris'
         }
         variables_of_interest: ['fnl']
         pics_config:

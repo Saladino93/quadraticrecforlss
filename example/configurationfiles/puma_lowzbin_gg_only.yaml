@@ -1,4 +1,4 @@
-name: 'mm_lowzbin_gg_only'
+name: 'puma_lowzbin_gg_only'
 file_config:
         base_dir: 'output/'
         data_dir: 'data_dir/'
@@ -16,7 +16,7 @@ data_creation_config:
         mink: 1e-7
         # Max k for P, M generation, in h/Mpc
         maxk: 1.
-        z: 2.25
+        z: 2.5
         cosmology: 'Planck15' #can be: Planck15, Planck13
 survey_config:
         primordial_pars:
@@ -30,22 +30,22 @@ survey_config:
         tracer_properties:
                 mhalo: 0.773
                 # Mean number density of sources, in (h/Mpc)^3
-                nhalo: 19e-4
+                nhalo: 1.9e-2
                 biases: # if blank use a theory expression
-                        b10: 2.9
+                        b10: 2.1
                         b01: ''
                         b11: ''
                         b02: ''
-                        b20: 1.1
+                        b20: 0.04
                         bs2: ''
         geometry:
                 # Survey volume in (Gpc/h)^3
-                volume: 24. # 80 Gpc^3 * (0.67/h)^3
+                volume: 80 # 265 Gpc^3 * (0.67/h)^3
 analysis_config:
-        mink_reconstruction: 0.09
-        maxk_reconstruction: 0.24
+        mink_reconstruction: 0.1
+        maxk_reconstruction: 0.26
         mink_analysis: 0.001
-        maxk_analysis: 0.08
+        maxk_analysis: 0.09
         specific_combs: [['g'], ['g']]
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
                                 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']

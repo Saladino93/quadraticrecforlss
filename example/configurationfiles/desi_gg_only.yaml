@@ -47,7 +47,8 @@ analysis_config:
         mink_analysis: 0.001
         maxk_analysis: 0.05
         specific_combs: [['g'], ['g']]
-        variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac', 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
+        variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
+                                'a1', 'a2', 'fnl', 'nhalo', 'Pnlin']
         biases_definitions: {
           'g': 'b10+21/17*b20',
           's': 'b10',
@@ -61,7 +62,8 @@ analysis_config:
         noise_prefix: 'N'
         new_bias_expr: 'b10*(g+s*Ngg/Ngs+t*Ngg/Ngt+phiphi*(Ngg/Nphiphig)+c01*(Ngg/Nc01g)+c11*(Ngg/Nc11g)+c02*(Ngg/Nc02g))'
 forecast_config:
-        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin', 'M', 'deltac', 'a1', 'a2', 'Ngg', 'Ngt', 'Nphiphig', 'Ngs', 'Nc02g', 'Nc01g', 'Nc11g', 'new_bias']
+        variables_list: ['b10', 'b01', 'b11', 'b20', 'bs2', 'fnl', 'nhalo', 'Plin',
+                         'M', 'deltac', 'a1', 'a2', 'Ngg']
         #best thing if the script automatically detects the variables from the expressions
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl']

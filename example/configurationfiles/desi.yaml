@@ -46,8 +46,8 @@ analysis_config:  #insert spacing feature for number of ks?
         maxk_reconstruction: 0.15
         mink_analysis: 0.001
         maxk_analysis: 0.05
-
-        specific_combs: [['g'], ['g', 's', 't', 'phiphi', 'c01', 'c11', 'c02']]
+        specific_combs: ''
+        # specific_combs: [['g'], ['g', 's', 't', 'phiphi', 'c01', 'c11', 'c02']]
         #which combs to calculate? if nothing make all possible combs for Nab
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
                                 'a1', 'a2', 'fnl', 'nhalo', 'Pnlin','fnlScaling']
@@ -73,7 +73,7 @@ forecast_config:
         #should also add shot bis and tris
         variables_list_fisher: ['b10', 'fnl', 'b20', 'bs2']
         #if you want a gaussian prior: {'value', 'sigma'} otherwise put just the value for flat infiniteprior and leave blank for sigma
-        priors: {'b10': '', 'fnl': '', 'b20': 0.03, 'bs2': ''}
+        priors: {'b10': '', 'fnl': '', 'b20': '', 'bs2': ''}
 
         cov_dict: {
           'Pgg': '(b10+fnlScaling*fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo',
