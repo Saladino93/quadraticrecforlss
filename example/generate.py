@@ -78,6 +78,7 @@ maxK = np.minimum(kM.max(), K.max())
 # Select k and power spectrum values within range defined above
 select = (K>minK)&(K<maxK)
 K = K[select]
+Klin = Klin[select]
 Plin = Plin[select]
 Pnlin = Pnlin[select]
 
@@ -129,6 +130,10 @@ b11 = values['survey_config']['tracer_properties']['biases']['b11']
 b02 = values['survey_config']['tracer_properties']['biases']['b02']
 b20 = values['survey_config']['tracer_properties']['biases']['b20']
 bs2 = values['survey_config']['tracer_properties']['biases']['bs2']
+
+f = values['survey_config']['geometry']['f']
+
+f = float(f)
 
 b10 = float(b10)
 
@@ -186,23 +191,50 @@ times the NON linear power spectrum plus the shot noise contribution of the trac
 
 shot = 1/nhalo
 
-Ptot = (b10+(betaf*fnl)/Mscipy(K))**2.*Pnlin+shot
+mu = np.linspace(-1, 1, len(K))
 
-Pnlinsign = (b10+(betaf*fnl)/Mscipy(K))**2.*Pnlin
+M_K = Mscipy(K)
+inv_M_mesh, mu_mesh = np.meshgrid(1/M_K, mu)
+
+b_tot = b10+(betaf*fnl)*inv_M_mesh+f*mu_mesh**2.
+
+Ptot = (b_tot)**2.*Pnlin+shot
+
+Pnlinsign = (b_tot)**2.*Pnlin
 
 ''' CREATE ESTIMATOR OBJECT FOR NOISE CALCULATIONS '''
 
 vegas_mode = True
 
 if vegas_mode:
-    Ptot[K > maxkhrec] = np.inf
-    Pnlinsign[K > maxkhrec] = 0
-    Pnlinsign[K < minkhrec] = 0
+    sel = K > maxkhrec
+    K_mesh, mu_mesh = np.meshgrid(1/Mscipy(K), mu)
+    #Ptot[K_mesh > maxkhrec] = 1e90 #CHECK FOR OLD CODE THIS IS OK
+    #Pnlinsign[K > maxkhrec] = 0
+    #Pnlinsign[K < minkhrec] = 0
 
-Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
-Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1.)
+index_max = np.where(K<maxkhrec)[0][-1]
+index_min = np.where(K>minkhrec)[0][0]
 
-est = es.Estimator(K, Ptot, Plin)
+Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+Plin_slice = Plin[index_min:index_max]
+Pnlinsign = Pnlinsign[:, index_min:index_max]
+K = K[index_min:index_max]
+
+#Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
+#Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+
+Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+
+Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
+
+min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
+fill_value = 0.
+Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
+Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
+
+est = es.Estimator(K, mu, Ptot, Plin_slice)
 
 #this object is using sympy to define the different modecoupling kernels
 
@@ -226,7 +258,8 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh, 0.001)
+K_of_interest = np.arange(minkh, maxkh, 0.0005)
+mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
 
 #Now calculate different noise curves and store them inside the object
 est.generateNs(K_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
@@ -245,7 +278,9 @@ dic = {}
 
 dic['K'] = est.Krange
 
-Plin = np.interp(est.Krange, K, Plin)
+Plin = np.interp(est.Krange, Klin, Plin)
+
+shot = dic['K']*0.+shot
 
 for a, b in listKeys:
     dic['N'+a+b] = est.getN(a, b)
@@ -271,7 +306,7 @@ mu_sign = 1.
 shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
 sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
 
-sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy(K_of_interest)*shot
+sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)*shot
 
 shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
 
@@ -299,13 +334,20 @@ sh_tris_3_a = (shotfactor_onePpower*Ngg)**2.*shot
 sh_tris_3_b = (shotfactor_zeroPpower*Ngg)*(shotfactor_twoPpower*Ngg)*shot
 
 sh_tris_4_a = shotfactor_double*Ngg**2.*shot**2.
-sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy(K_of_interest)
+sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)
 
 sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
 
 for vv in variables_list:
     if 'N' not in vv:
         dic[vv] = globals()[vv]
+
+M_mesh, mu_mesh = np.meshgrid(Mscipy(K_of_interest), mu_of_interest)
+
+dic['mu'] = mu_mesh#mu_of_interest
+dic['M'] = M_mesh
+
+dic['Ptot'] = Ptot
 
 with open(direc+data_dir+dic_name, 'wb') as handle:
     pickle.dump(dic, handle, protocol=pickle.HIGHEST_PROTOCOL)

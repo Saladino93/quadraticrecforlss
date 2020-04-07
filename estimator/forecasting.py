@@ -130,7 +130,7 @@ class Forecaster(expression):
         for i in range(matrix_dim):
             covariance[i, :] = [expressions_list[i:matrix_dim+i]] 
         self.cov_matrix = covariance
-
+        self.cov_matrix_dim = matrix_dim
  
     def plot_cov(self, var_values, legend = {'Plin': 'black'}, title = 'Covs', 
                  xlabel = '$K$ $(h Mpc^{-1})$', ylabel = '$P$ $(h^3 Mpc^{-3})$', output_name = ''):
@@ -141,8 +141,8 @@ class Forecaster(expression):
         var_values : dict
             Dictionary of variable values to use in plots.
         legend : dict
-            Dictionary of items to plot, specifying colors for each.
-            Possible keys: Plin, Pgg, Pgn, Pnn, Ngg, shot
+            Dictionary of items to plot, specifying colors for each. Add these terms in variable list! 
+            Possible keys: Pgg, Pgn, Pnn, shot, Ngg, sh_bis, ...
         title : str
             Title of plot.
         xlabel, ylabel : str
@@ -161,14 +161,24 @@ class Forecaster(expression):
   
         spectra = {} 
 
-        
+        count = 0
+        for k in legend.keys():
+            if k in self.covmatrix_str: 
+                i = int(count/self.cov_matrix_dim)
+                j = (count+i)%self.cov_matrix_dim
+                spectra[k] = temp_cov[i, j, :]
+                count += 1
+            else:
+                spectra[k] = var_values[k]
+                
+        ''' 
         gg = temp_cov[0, 0, :]
-        spectra['Pgg'] = gg
+        #spectra['Pgg'] = gg
         try:
-            nn = temp_cov[1, 1, :]
-            gn = temp_cov[0, 1, :]
-            spectra['Pgn'] = gn
-            spectra['Pnn'] = nn
+            #nn = temp_cov[1, 1, :]
+            #gn = temp_cov[0, 1, :]
+            #spectra['Pgn'] = gn
+            #spectra['Pnn'] = nn
             spectra['sh_bis'] = var_values['sh_bis']
             spectra['sh_tris'] = var_values['sh_tris']
         except:
@@ -180,7 +190,8 @@ class Forecaster(expression):
         
         spectra['shot'] = K*0.+1./var_values['nhalo']
         spectra['Ngg'] = var_values['Ngg']
-          
+        '''
+
         # Make plot
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
@@ -239,7 +250,7 @@ class Forecaster(expression):
         po = sp.symbols('po') 
         if po not in all_vars:
             all_vars += [po]
-            var_values['po'] = np.ones(self.length_K)
+            var_values['po'] = np.ones((self.length_K, self.length_K))
 
         numpy_covariance_matrix = sp.lambdify(all_vars, covariance_matrix, 'numpy')
         numpy_dera_covariance_matrix = sp.lambdify(all_vars, dera_covariance_matrix+po*sp.ones(*covariance_matrix.shape), 'numpy')
@@ -252,16 +263,17 @@ class Forecaster(expression):
 
         shape = cov_mat.shape
 
-        final = []
+        final = np.zeros((shape[-2], shape[-1]))
 
         # Compute Fisher matrix
-        for i in range(shape[-1]):
-            cov = cov_mat[:, :, i]
-            dera_cov = dera_cov_mat[:, :, i]-var_values['po'][i]*1
-            derb_cov = derb_cov_mat[:, :, i]-var_values['po'][i]*1
-            invC = np.linalg.inv(cov)
-            prod = dera_cov@invC@derb_cov@invC
-            final += [0.5*np.matrix.trace(prod)]
+        for i in range(shape[-2]):  #K index
+            for j in range(shape[-1]): #mu index
+                cov = cov_mat[:, :, i, j]
+                dera_cov = dera_cov_mat[:, :, i, j]-var_values['po'][i, j]*1
+                derb_cov = derb_cov_mat[:, :, i, j]-var_values['po'][i, j]*1
+                invC = np.linalg.inv(cov)
+                prod = dera_cov@invC@derb_cov@invC
+                final[i, j] += 0.5*np.matrix.trace(prod)
 
         final = np.array(final)
 
@@ -306,7 +318,7 @@ class Forecaster(expression):
         shape = [N, N]
         fab = sp.zeros(*shape)
 
-        fab_numpy = np.zeros((N, N, self.length_K))
+        fab_numpy = np.zeros((N, N, self.length_K, self.length_K))
 
         if verbose:
             print('Calculating fisher matrix per mode')
@@ -318,8 +330,8 @@ class Forecaster(expression):
             derb_cov = self.get_expression('der'+str(b)+'_matrix')
             i, j = lista.index(a), lista.index(b)
             f = self.__getF__(self.cov_matrix, dera_cov, derb_cov, var_values)
-            fab_numpy[i, j, :] = f
-            fab_numpy[j, i, :] = f                
+            fab_numpy[i, j, :, :] = f
+            fab_numpy[j, i, :, :] = f                
 
      
         self.fisher = fab_numpy
@@ -331,7 +343,7 @@ class Forecaster(expression):
             
 
     def get_error(self, variable, marginalized = False, integrated = False, kmin = 0.005, kmax = 0.05, volume = 100, Ks = None, recalculate = False, 
-        interp_mode = 'cubic', verbose = True):
+        interp_mode = 'cubic', scipy_mode = True, verbose = True):
         """Get Fisher errorbar on specific parameter.
 
         Parameters
@@ -369,6 +381,9 @@ class Forecaster(expression):
         lista = self.fisher_list
         combs = list(itertools.combinations_with_replacement(list(lista), 2))
 
+        if verbose:
+            print('List for combinations', lista)
+
         if integrated:
 
              # Make array of k_min values to consider
@@ -381,10 +396,15 @@ class Forecaster(expression):
 
                 # Define empty array for Fisher values, and fetch parameter pairs
                 shape = self.fisher_numpy.shape
+                
                 f_int = np.zeros((shape[0], shape[1], len(Ks)))
     
                 if verbose:
                     print('Getting integrated error')
+                    if scipy_mode:
+                        print('Scipy Integration routine')
+                    else:
+                        print('Mpmath Integration routine')
 
                 # For each parameter pair, get Fisher element for each k, and
                 # do k integral
@@ -393,18 +413,20 @@ class Forecaster(expression):
                     if verbose:
                         print('\t%s, %s' % (a,b))
                     i, j = lista.index(a), lista.index(b)
-                    f = self.fisher_numpy[i, j, :]
+                    f = self.fisher_numpy[i, j, ...]
 
                     IntegratedFish = np.array([])
                     
                     for Kmin in Ks:
-                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume, interp_mode = interp_mode) #maybe just interpolate once?
+                        error = self.getIntegratedFisher(K, f, Kmin, kmax, volume, interp_mode = interp_mode, scipy_mode = scipy_mode)  #maybe just interpolate once?
                         IntegratedFish = np.append(IntegratedFish, error)
                 
                     f_int[i, j, :] = IntegratedFish+self.inv_priors[a]*int(i==j)
                     f_int[j, i, :] = f_int[i, j, :]
 
-                    self.fisher_integrated = f_int
+                self.fisher_integrated = f_int
+
+                    
 
             if verbose:
                 print('Done getting integrated error')
@@ -425,10 +447,10 @@ class Forecaster(expression):
                     f_int = self.fisher_integrated
                     cov_int_marg = f_int.copy()
                     for i in range(f_int.shape[-1]):
-                        matrix = f_int[..., i]
-                        cov_int_marg[..., i] = np.linalg.inv(matrix)
-                        error_inversion1 = np.max(abs(cov_int_marg[..., i]@matrix-np.eye(N)))
-                        error_inversion2 = np.max(abs(matrix@cov_int_marg[..., i]-np.eye(N)))
+                        matrix = f_int[:, :, i]
+                        cov_int_marg[:, :, i] = np.linalg.inv(matrix)
+                        error_inversion1 = np.max(abs(cov_int_marg[:, :, i]@matrix-np.eye(N)))
+                        error_inversion2 = np.max(abs(matrix@cov_int_marg[:, :, i]-np.eye(N)))
                         # or can just check if m*minv = minv*m within some error
                         if (error_inversion1 > 1e-2) or (error_inversion2 > 1e-2):
                             print('WARNING: Fisher matrix inversion not accurate.')
@@ -463,7 +485,7 @@ class Forecaster(expression):
     def set_mpmath_integration_precision(self, integration_prec = 53):
         mpmath.mp.prec = integration_prec
 
-    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False, scipy_mode = False, interp_mode = 'cubic'):
+    def getIntegratedFisher(self, K, FisherPerMode, kmin, kmax, V, apply_filter = False, scipy_mode = True, interp_mode = 'cubic'):
         """Integrate per-mode Fisher matrix element in k, to get full Fisher matrix element.
 
         Given arrays of k values and corresponding Fisher matrix elements F(k), compute
@@ -502,24 +524,28 @@ class Forecaster(expression):
                 window_length = 7 #2*int(lenK/10)+1 #make sure it is an odd number
                 FisherPerMode = savgol_filter(FisherPerMode, window_length, 3) #, mode = 'nearest')
 
-            function = scipy.interpolate.interp1d(K, FisherPerMode, interp_mode)
+            mus = np.linspace(-1, 1, len(K))
+
+            function = scipy.interpolate.interp2d(K, mus, FisherPerMode, interp_mode, fill_value = 0., bounds_error = 0.)
+            import scipy.interpolate as si
+            f = lambda x1,x2 : x1**2.*(si.dfitpack.bispeu(function.tck[0], function.tck[1], function.tck[2], function.tck[3], function.tck[4], x1, x2)[0])[0]
 
             if scipy_mode:
-                result = scipy.integrate.quad(lambda x: function(x)*x**2., kmin, kmax, epsrel = 1e-15)
+                result = scipy.integrate.dblquad(lambda y, x: function(x, y)*x**2., kmin, kmax, lambda x: -1., lambda x: 1., epsrel = 1e-15)
             else:
                 ## A bit slow but it is worth it for numerical precision
-                def f(x):
-                    x = float(x)
-                    y = function(x)*x**2.
-                    return mpmath.mpf(1)*y
-
-                resultmp = mpmath.quad(f, [kmin, kmax])
+                #def f(x, y):
+                #    x, y = float(x), float(y)
+                #    z = function(x, y)*x**2.
+                #    z = z[0]
+                #    return mpmath.mpf(1)*z
+                resultmp = mpmath.quad(f, [kmin, kmax], [-1, 1])
                 result = [resultmp]
 
-            result = result[0]*V/(4.*np.pi**2.)
+            result = result[0]*(V/2)/(2.*np.pi)**2.
             return result
 
-    def plot_forecast(self, variable, error_versions, kmin = 0.005, kmax = 0.05,
+    def plot_forecast(self, variable, error_versions, scipy_mode = True, kmin = 0.005, kmax = 0.05,
                      volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$', 
                     ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = ''):
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
@@ -532,7 +558,7 @@ class Forecaster(expression):
 
         for label, value in error_versions.items():
             K, error = self.get_error(variable, value['marginalized'], value['integrated'], 
-                                      kmin, kmax, volume) 
+                                      kmin, kmax, volume, scipy_mode = scipy_mode)
             plt.plot(K, error, label = label, lw = 2)
         ax.legend(loc = 'best', prop = {'size': 6})
         fig.savefig(output_name, dpi = 300)

@@ -1,6 +1,7 @@
 import numpy as np
 import sympy as sp
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, interp2d
+import scipy.interpolate as si
 from scipy import integrate
 import itertools
 import functools
@@ -12,17 +13,37 @@ class vectorize(np.vectorize):
     def __get__(self, obj, objtype):
         return functools.partial(self.__call__, obj)
 
+def vectorize_2dinterp(function, x1, x2, min_x1, max_x1, min_x2, max_x2, fill_value):
+    
+    A = x1<max_x1
+    B = min_x1<x1
+    C = x2<max_x2
+    D = min_x2<x2
+    
+    E = A*B*C*D
+    
+    mask = np.ones(x1.shape)
+    mask[~E] = fill_value
+    
+    temp = si.dfitpack.bispeu(function.tck[0], function.tck[1], function.tck[2], function.tck[3], function.tck[4], x1, x2)[0]
+    
+    result = mask*temp
+    
+    return result
+
 
 class Estimator(object):
 
 #Power is an array with the total power spectrum of the observed field
 #calculated in several k bins
 
-    def __init__(self, tot_k = 0., tot_power = 0., Plin = 0.):
+    def __init__(self, tot_k = 0., tot_mu = 0., tot_power = 0., Plin = 0.):
 
-        self.thP = interp1d(tot_k, Plin)#This is for the Numerator 
-        self.P = interp1d(tot_k, tot_power)#Goes into the Denominator of the Filter
-
+        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)#This is for the Numerator 
+        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
+        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
+        fill_value = np.inf
+        self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
         self._F = {}
         self._Ffunc = {}
         self.q1, self.q2, self.mu = sp.symbols('q1 q2 mu')
@@ -93,8 +114,11 @@ class Estimator(object):
             modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
             result = 2*np.pi*q**2./(2*np.pi)**3.
 
+            mu_p = K**2.-q*K*mu
+            mu_p /= (K*modK_q)
+
             result *= f(q, modK_q, mu)
-            result /= (2*self.P(q)*self.P(modK_q))
+            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
             return result 
 
@@ -125,8 +149,11 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
            result *= f(a, q, K, mu)*f(b, q, K, mu)
-           result /= (2*self.P(q)*self.P(modK_q))
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
            return result
         return _integrand
@@ -142,9 +169,17 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
-           result *= f(a, q, K, mu)*f(b, q, K, mu)
-           result /= (2*self.P(q)*self.P(modK_q))
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
 
+           result *= f(a, q, K, mu)*f(b, q, K, mu)
+
+
+           #Pqmu = vectorize_2dinterp(self.P, q, mu)
+           #PmodK_qmu_p = vectorize_2dinterp(self.P, modK_q, mu_p)
+           #div = np.array(Pqmu*PmodK_qmu_p)
+ 
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
            return result
         return _integrand
 
@@ -159,8 +194,11 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
-           result *= f(a, q, K, mu)*function1(q)*function2(modK_q)
-           result /= (2*self.P(q)*self.P(modK_q))
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
+           result *= f(a, q, K, mu)*function1(q, mu)*function2(modK_q, mu_p)
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
            return result
         return _integrand
@@ -186,11 +224,21 @@ class Estimator(object):
 
            qtot = (q*np.sin(theta)*np.cos(phi)+q_prime*np.sin(theta_prime)*np.cos(phi_prime))**2.
            qtot += (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
-           qtot += (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
+           q_radial2 = (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
+           q_radial = np.sqrt(q_radial2)
+           qtot += q_radial2
            qtot = np.sqrt(qtot)
 
-           result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot)
-           result /= (2*self.P(q)*self.P(modK_q)*2*self.P(q_prime)*self.P(modK_q_prime))
+           mutot = q_radial/qtot
+
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
+           mu_prime_p = K**2.-q_prime*K*mu_prime
+           mu_prime_p /= (K*modK_q_prime)
+
+           result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot, mutot)
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p)*2*self.P(q_prime, mu_prime)*self.P(modK_q_prime, mu_prime_p))
 
            return result
         return _integrand
@@ -241,7 +289,6 @@ class Estimator(object):
             integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 100)
             result = integ(function, nitn = nitn, neval = neval)
             integral = result.mean
- 
         else:
             function = self._outer_integral(self.f, K, a, b)
             options = {'limit' : 100, 'epsrel': 1e-4}

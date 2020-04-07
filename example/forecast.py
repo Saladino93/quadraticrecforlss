@@ -57,7 +57,6 @@ pics_config = config['pics_config']
 for key, val in pics_config.items():
     exec(key + '=val')
        
-dic['fnl'] = 0.
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
 '''
@@ -74,7 +73,14 @@ K = dic['K']
 var_values = {}
 
 for vv in variables_list:
-    var_values[vv] = dic[vv]
+    temp = dic[vv]
+    if np.array(temp).ndim > 1:
+        temp = temp[-1, :] #select last mu row, corresponding to mu = 1
+    var_values[vv] = temp
+
+
+#print(dic['Plin'].shape) 
+#a = np.tile(a, (1, 2))
 
 ###### FORECAST ######
 
@@ -102,16 +108,27 @@ forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 
 forecast.add_cov_matrix(cov_dict)
+
+mu = 1
+var_values['mu'] = mu
+
+print(f'Plotting spectra. Using mu = {mu} for tracer autospectrum.')
+
 forecast.plot_cov(var_values, legend = legend_cov, title = title_cov, xlabel = xlabel_cov, ylabel = ylabel_cov, output_name = direc+pics_dir+output_name_cov+'.png')
 
 
+for vv in variables_list:
+    var_values[vv] = dic[vv]
+
 forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
 
-forecast.set_mpmath_integration_precision(100)
+forecast.set_mpmath_integration_precision(50)
 
-error_versions = {'Per mode not integrated ': {'marginalized': False, 'integrated': False}, 'Integrated marginalized': {'marginalized': False, 'integrated': True}}
+
+#error_versions = {'Per mode not integrated ': {'marginalized': False, 'integrated': False}, 'Integrated marginalized': {'marginalized': False, 'integrated': True}}
+error_versions = {'Integrated non marginalized': {'marginalized': False, 'integrated': True}, 'Integrated marginalized': {'marginalized': True, 'integrated': True}}
 for v in variables_of_interest:
-    forecast.plot_forecast(v, error_versions, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
+    forecast.plot_forecast(v, error_versions, scipy_mode = True, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'.png')
 
 
 
