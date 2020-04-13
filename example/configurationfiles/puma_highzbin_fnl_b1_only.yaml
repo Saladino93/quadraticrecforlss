@@ -44,7 +44,7 @@ survey_config:
 analysis_config:
         mink_reconstruction: 0.16
         maxk_reconstruction: 0.47
-        mink_analysis: 0.001
+        mink_analysis: 0.002
         maxk_analysis: 0.15
         specific_combs: [['g'], ['g', 's', 't', 'phiphi', 'c01', 'c11', 'c02']]
         #which combs to calculate? if nothing make all possible combs for Nab
@@ -79,6 +79,9 @@ forecast_config:
           'Pnn': 'new_bias**2*Plin+Ngg+sh_tris'
         }
         variables_of_interest: ['fnl']
+
+        deltag_kmin_kpar: False
+
         pics_config:
             title: 'Error'
             xlabel: '$K$ $(h Mpc^{-1})$'

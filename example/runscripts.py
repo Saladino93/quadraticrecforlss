@@ -3,9 +3,9 @@ import subprocess
 import sys
 
 if len(sys.argv) == 1:
-        print('Choose your configuration file!') 
-        sys.exit() 
-    
+        print('Choose your configuration file!')
+        sys.exit()
+
 config = str(sys.argv[1])
 
 program_list = ['create_matter_power.py', 'generate.py', 'forecast.py']

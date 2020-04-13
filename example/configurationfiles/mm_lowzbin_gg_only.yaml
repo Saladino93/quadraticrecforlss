@@ -44,7 +44,7 @@ survey_config:
 analysis_config:
         mink_reconstruction: 0.09
         maxk_reconstruction: 0.24
-        mink_analysis: 0.001
+        mink_analysis: 0.002
         maxk_analysis: 0.08
         specific_combs: [['g'], ['g']]
         variables_list_config: ['b10', 'b01', 'b11', 'b20', 'bs2', 'deltac',
@@ -72,6 +72,9 @@ forecast_config:
           'Pgg': '(b10+fnl*2*deltac*(b10-1)/M)**2*Plin+1/nhalo'
         }
         variables_of_interest: ['fnl']
+
+        deltag_kmin_kpar: False
+
         pics_config:
             title: 'Error'
             xlabel: '$K$ $(h Mpc^{-1})$'

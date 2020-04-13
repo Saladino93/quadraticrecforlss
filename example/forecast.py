@@ -35,6 +35,8 @@ with open(values_file, 'r') as stream:
     data = yaml.safe_load(stream)
 values = data
 
+print('********** Config file: %s' % values_file)
+
 # Get directory and file names
 direc = values['name']
 base_dir = values['file_config']['base_dir']
@@ -107,14 +109,14 @@ if 'Nab_wedge_scaling_fractions' in config.keys():
     Nab_wedge_frac_data = np.loadtxt(config['Nab_wedge_scaling_fractions']).T
     Nab_wedge_fraction = interp1d(Nab_wedge_frac_data[0], Nab_wedge_frac_data[1])
 
-# For each stored N_ab curve, divide it by the N_ab scaling fraction at
-# the specified k. This divides the noise curves by the fraction of modes that
-# are outside of the wedge, which should be a decent approximation for the
-# effect of the modes that are lost to the wedge.
-for vv in var_values.keys():
-    if vv[0] == "N":
-        print('Rescaling %s' % vv)
-        var_values[vv] /= Nab_wedge_fraction(K)
+    # For each stored N_ab curve, divide it by the N_ab scaling fraction at
+    # the specified k. This divides the noise curves by the fraction of modes that
+    # are outside of the wedge, which should be a decent approximation for the
+    # effect of the modes that are lost to the wedge.
+    for vv in var_values.keys():
+        if vv[0] == "N":
+            print('Rescaling %s' % vv)
+            var_values[vv] /= Nab_wedge_fraction(K)
 
 # If a mu_limit is specified, grab it
 mu_limit = None
@@ -122,6 +124,19 @@ if 'fisher_mu_limit' in config.keys():
     mu_limit = config['fisher_mu_limit']
     print('Fisher mu limit found: %g' % mu_limit)
 
+# Figure out whether k_min is for k or k_\parallel
+deltag_kmin_kpar = False
+if 'deltag_kmin_kpar' in config.keys():
+    deltag_kmin_kpar = bool(config['deltag_kmin_kpar'])
+    print('deltag_kmin_kpar:',deltag_kmin_kpar)
+
+# If fg_cov_dict is supplied, grab it, and set flag for later:
+fg_cov = False
+fg_cov_dict = None
+if 'fg_cov_dict' in config.keys():
+    fg_cov = True
+    fg_cov_dict = config['fg_cov_dict']
+    print('Will compute separate Fisher matrix for foreground-obscured modes')
 
 ###### FORECAST ######
 
@@ -148,7 +163,7 @@ for x, y in combs:
 forecast.new_bias = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 
-forecast.add_cov_matrix(cov_dict)
+forecast.add_cov_matrix(cov_dict, wedge_covariance_matrix_dict = fg_cov_dict)
 
 legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
               'Pgg': {'color': 'red', 'ls': '-'},
@@ -185,7 +200,9 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl*fnlScalin
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'],
-              log_integral = True, mu_limit = mu_limit)
+              log_integral = True, mu_limit = mu_limit,
+              deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov,
+              recalculate=True)
 np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 # print(kf[0],sig_fnl[0])
@@ -195,7 +212,8 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'],
-              log_integral = True, mu_limit = mu_limit)
+              log_integral = True, mu_limit = mu_limit,
+              deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov)
 np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 
 error_versions = {
@@ -211,8 +229,9 @@ forecast.plot_forecast('fnl', error_versions,
                         rescale_y = fnlScaling)
 
 
-b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]
-if False:
+# b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]
+b2_bs2_frac_prior_list = [0.1]
+if True:
     for frac_prior in b2_bs2_frac_prior_list:
         print('Recomputing marginalized forecasts with fractional b2,bs2 priors of %g' \
                 % frac_prior)
@@ -222,6 +241,7 @@ if False:
         kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
                       recalculate=True, kmin = K.min(), kmax = K.max(),
                       volume = values['survey_config']['geometry']['volume'],
-                      log_integral = True, mu_limit = mu_limit)
+                      log_integral = True, mu_limit = mu_limit,
+                      deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov)
         np.savetxt(direc+data_dir+'sigma_fnl_marg_int_fracprior%g.dat' % frac_prior,
                     np.c_[kf,sig_fnl*fnlScaling])
