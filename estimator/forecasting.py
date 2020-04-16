@@ -842,7 +842,7 @@ class Forecaster(expression):
                 result = [resultmp]
 
         # result = result[0]*V/(4.*np.pi**2.)
-        result = result[0]*(V/2)/(2.*np.pi)**2.
+        result = result[0]*V/(2.*np.pi)**2.
         return result
 
 
