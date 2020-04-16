@@ -28,10 +28,12 @@ def getM(cosmology, redshift, vector):
     lightvel = 3.*10**5.
     M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
 
+    # The transfer function from nbodykit is multiplied by the linear
+    # growth factor normalized to unity at z=0, but M should have the
+    # growth factor normalized to 1/(1+z) during matter domination, so we
+    # re-normalized M with that definition of the growth factor
     pert = nbodykit.cosmology.background.MatterDominated(Omega_m)
-    # M *= (1/51.) / pert.D1(1/51.)
-
-    print(H0/lightvel, Omega_m, T[0], vector[10], M[10])
+    M *= (1/51.) / pert.D1(1/51.)
 
     return M
 
