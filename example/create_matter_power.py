@@ -27,6 +27,12 @@ def getM(cosmology, redshift, vector):
     H0 = cosmology.H0
     lightvel = 3.*10**5.
     M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
+
+    pert = nbodykit.cosmology.background.MatterDominated(Omega_m)
+    # M *= (1/51.) / pert.D1(1/51.)
+
+    print(H0/lightvel, Omega_m, T[0], vector[10], M[10])
+
     return M
 
 ## Simple constant that appears in M
@@ -65,8 +71,8 @@ if not os.path.exists(direc):
     os.makedirs(direc+data_dir)
     os.makedirs(direc+pics_dir)
 else:
-    print('Baseline name already exists!')
-    sys.exit()
+    print('Baseline name already exists! Regenerating anyway...')
+    # sys.exit()
 
 #min and max wave numbers for definition of ranges  and the number of points in between to sample from
 mink = float(values['data_creation_config']['mink'])

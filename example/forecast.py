@@ -73,9 +73,6 @@ new_bias_expr = analysis_config['new_bias_expr']
 pics_config = config['pics_config']
 for key, val in pics_config.items():
     exec(key + '=val')
-
-# dic['fnl'] = 0.
-
 terms = biases_definitions.keys()
 combs = list(itertools.combinations_with_replacement(list(terms), 2))
 '''
@@ -92,7 +89,14 @@ K = dic['K']
 var_values = {}
 
 for vv in variables_list:
-    var_values[vv] = dic[vv]
+    temp = dic[vv]
+    if np.array(temp).ndim > 1:
+        temp = temp[-1, :] #select last mu row, corresponding to mu = 1
+    var_values[vv] = temp
+
+
+#print(dic['Plin'].shape)
+#a = np.tile(a, (1, 2))
 
 try:
     var_values['fnlScaling'] = float(config['fnlScaling'])
@@ -165,18 +169,27 @@ forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 
 forecast.add_cov_matrix(cov_dict, wedge_covariance_matrix_dict = fg_cov_dict)
 
+mu = 1
+var_values['mu'] = mu
+
+print(f'Plotting spectra. Using mu = {mu} for tracer autospectrum.')
+
 legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
               'Pgg': {'color': 'red', 'ls': '-'},
-              'shot': {'color': 'blue', 'ls': '-'},
+              # 'shot': {'color': 'blue', 'ls': '-'},
               'Ngg': {'color': 'green', 'ls': '-'}}
 output_name_cov = 'test_cov'
 
 forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
                   output_name = direc+pics_dir+output_name_cov+'.pdf')
 
+for vv in variables_list:
+    var_values[vv] = dic[vv]
+
 forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
 
-forecast.set_mpmath_integration_precision(100)
+forecast.set_mpmath_integration_precision(50)
+
 
 # print(forecast.cov_matrix[0,1])
 # print(forecast.K)
@@ -194,16 +207,21 @@ forecast.set_mpmath_integration_precision(100)
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'])
-# np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.array((kf,sig_fnl*fnlScaling)).T)
-np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl*fnlScaling])
+np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl[0,:]*fnlScaling])
+# np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',sig_fnl*fnlScaling)
+
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'],
-              log_integral = True, mu_limit = mu_limit,
+              # log_integral = True,
+              log_integral = False,
+              mu_limit = mu_limit,
               deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov,
-              recalculate=True)
+              recalculate=True, scipy_mode=False)
 np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
+# print(np.c_[kf,sig_fnl*fnlScaling])
+
 
 # print(kf[0],sig_fnl[0])
 # print(forecast.getIntegratedFisher(K, forecast.fisher_numpy[1,1, :], 0.001,0.1,
@@ -212,9 +230,10 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_int.dat',np.c_[kf,sig_fnl*fnlScaling
 kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
               kmin = K.min(), kmax = K.max(),
               volume = values['survey_config']['geometry']['volume'],
-              log_integral = True, mu_limit = mu_limit,
+              log_integral = False, mu_limit = mu_limit,
               deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov)
 np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
+# print(np.c_[kf,sig_fnl*fnlScaling])
 
 error_versions = {
     'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
@@ -231,7 +250,7 @@ forecast.plot_forecast('fnl', error_versions,
 
 # b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]
 b2_bs2_frac_prior_list = [0.1]
-if True:
+if False:
     for frac_prior in b2_bs2_frac_prior_list:
         print('Recomputing marginalized forecasts with fractional b2,bs2 priors of %g' \
                 % frac_prior)
@@ -241,7 +260,8 @@ if True:
         kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
                       recalculate=True, kmin = K.min(), kmax = K.max(),
                       volume = values['survey_config']['geometry']['volume'],
-                      log_integral = True, mu_limit = mu_limit,
-                      deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov)
+                      log_integral = False, mu_limit = mu_limit,
+                      deltag_kmin_kpar=deltag_kmin_kpar, add_fg_fisher = fg_cov,
+                      scipy_mode=False)
         np.savetxt(direc+data_dir+'sigma_fnl_marg_int_fracprior%g.dat' % frac_prior,
                     np.c_[kf,sig_fnl*fnlScaling])

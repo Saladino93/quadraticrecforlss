@@ -3,7 +3,8 @@
 
 import numpy as np
 import sympy as sp
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, interp2d
+import scipy.interpolate as si
 from scipy import integrate
 import itertools
 import functools
@@ -17,17 +18,38 @@ class vectorize(np.vectorize):
     def __get__(self, obj, objtype):
         return functools.partial(self.__call__, obj)
 
+def vectorize_2dinterp(function, x1, x2, min_x1, max_x1, min_x2, max_x2, fill_value):
+
+    A = x1<max_x1
+    B = min_x1<x1
+    C = x2<max_x2
+    D = min_x2<x2
+
+    E = A*B*C*D
+
+    mask = np.ones(x1.shape)
+    mask[~E] = fill_value
+
+    temp = si.dfitpack.bispeu(function.tck[0], function.tck[1], function.tck[2],
+                                function.tck[3], function.tck[4], x1, x2)[0]
+
+    result = mask*temp
+
+    return result
+
 
 class Estimator(object):
     """Quadratic estimator class.
     """
 
-    def __init__(self, tot_k = 0., tot_power = 0., Plin = 0.):
+    def __init__(self, tot_k = 0., tot_mu = 0., tot_power = 0., Plin = 0.):
         """
         Parameters
         ----------
         tot_k : ndarray
             Array of k values corresponding to input power spectra.
+        tot_mu : ndarray
+            Array of mu values corresponding to input power spectra.
         tot_power : ndarray
             Array of signal+noise power spectrum values (for denominator
             of quadratic estimator filter).
@@ -35,8 +57,18 @@ class Estimator(object):
             Array of signal power spectrum values (for numerator of
             quadratic estimator filter).
         """
-        self.thP = interp1d(tot_k, Plin)#This is for the Numerator
-        self.P = interp1d(tot_k, tot_power)#Goes into the Denominator of the Filter
+        # self.thP = interp1d(tot_k, Plin)#This is for the Numerator
+        # self.P = interp1d(tot_k, tot_power)#Goes into the Denominator of the Filter
+
+        #This is for the Numerator
+        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)
+        #Goes into the Denominator of the Filter
+        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf)
+
+        # Store 2d interpolating function for Ptot
+        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
+        fill_value = np.inf
+        self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
 
         self._F = {}
         self._Ffunc = {}
@@ -218,8 +250,11 @@ class Estimator(object):
             modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
             result = 2*np.pi*q**2./(2*np.pi)**3.
 
+            mu_p = K**2.-q*K*mu
+            mu_p /= (K*modK_q)
+
             result *= f(q, modK_q, mu)
-            result /= (2*self.P(q)*self.P(modK_q))
+            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
             return result
 
@@ -294,10 +329,14 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
            result *= f(a, q, K, mu)*f(b, q, K, mu)
-           result /= (2*self.P(q)*self.P(modK_q))
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
            return result
+
         return _integrand
 
 
@@ -335,14 +374,24 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
-           result *= f(a, q, K, mu)*f(b, q, K, mu)
-           result /= (2*self.P(q)*self.P(modK_q))
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
 
+           result *= f(a, q, K, mu)*f(b, q, K, mu)
+
+
+           #Pqmu = vectorize_2dinterp(self.P, q, mu)
+           #PmodK_qmu_p = vectorize_2dinterp(self.P, modK_q, mu_p)
+           #div = np.array(Pqmu*PmodK_qmu_p)
+
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
            return result
+
         return _integrand
 
 
-    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a):
+        #for int g_a * function, where g_a is the weight
         """Construct the integrand for an N_{ab} integral, in Vegas format.
 
         Specifically, given functions f_1(q), f_2(|vec{|K-q|}|), and f_a(q,K,mu),
@@ -354,10 +403,16 @@ class Estimator(object):
 
         Parameters
         ----------
+        function1 : function
+            Function with arguments (q,mu).
+        function2 : function
+            Function with arguments (modK_q,mu).
         f : function
             Function with arguments (a,q,K,mu).
         K : float
             K value to feed to f.
+        mu_sign : float
+            Sign of mu in integral.
         a : str
             Key for f_a.
         b : str
@@ -377,10 +432,14 @@ class Estimator(object):
 
            result = 2*np.pi*q**2./(2*np.pi)**3.
 
-           result *= f(a, q, K, mu)*function1(q)*function2(modK_q)
-           result /= (2*self.P(q)*self.P(modK_q))
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
+           result *= f(a, q, K, mu)*function1(q, mu)*function2(modK_q, mu_p)
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
            return result
+
         return _integrand
 
 
@@ -430,18 +489,30 @@ class Estimator(object):
 
            qtot = (q*np.sin(theta)*np.cos(phi)+q_prime*np.sin(theta_prime)*np.cos(phi_prime))**2.
            qtot += (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
-           qtot += (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
+           q_radial2 = (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
+           q_radial = np.sqrt(q_radial2)
+           qtot += q_radial2
            qtot = np.sqrt(qtot)
 
-           result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot)
-           result /= (2*self.P(q)*self.P(modK_q)*2*self.P(q_prime)*self.P(modK_q_prime))
+           mutot = q_radial/qtot
+
+           mu_p = K**2.-q*K*mu
+           mu_p /= (K*modK_q)
+
+           mu_prime_p = K**2.-q_prime*K*mu_prime
+           mu_prime_p /= (K*modK_q_prime)
+
+           result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot, mutot)
+           result /= (2*self.P(q, mu)*self.P(modK_q, mu_p)*2*self.P(q_prime, mu_prime)*self.P(modK_q_prime, mu_prime_p))
 
            return result
+
         return _integrand
 
 
     @vectorize
-    def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2, vegas_mode = False):
+    def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2,
+                           vegas_mode = False):
 
         if vegas_mode:
 
@@ -457,7 +528,8 @@ class Estimator(object):
 
 
     @vectorize
-    def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime, minq_prime, maxq_prime, function, vegas_mode = False):
+    def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime,
+                                  minq_prime, maxq_prime, function, vegas_mode = False):
 
         if vegas_mode:
 
@@ -465,7 +537,8 @@ class Estimator(object):
             neval = 1000
 
             function = self._double_outer_integral_vegas_for_g(function, self.f, K, mu_sign, mu_sign_prime, a)
-            integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+            integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi],
+                                     [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
             result = integ(function, nitn = nitn, neval = neval)
             integral = result.mean
 
@@ -522,7 +595,7 @@ class Estimator(object):
 
     def generateNs(self, K, minq, maxq, listKeys = None, vegas_mode = False,
                     verbose = True):
-        """Generate N_{ab} values at a list of K values and for all possible (a,b) pairs.
+        """Generate N_{ab} values at a list of K values and for specified (a,b) pairs.
 
         The N matrix is stored as self.Nmatrix, and the K list as self.Krange.
 
@@ -562,7 +635,8 @@ class Estimator(object):
             if verbose:
                 print('Computing N integral for (%s,%s)' % (a,b))
             N = self.N(a, b, K, minq, maxq, vegas_mode)
-            retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
+            retList[a+","+b]= N#.append(N)
+            #if I do not vectorize generateNs I could assign retList the whole N, without append
 
         for a, b in listKeys:
             retList[b+","+a] = np.array(retList[a+","+b])
