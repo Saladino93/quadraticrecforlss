@@ -37,13 +37,48 @@ class Estimator(object):
 #Power is an array with the total power spectrum of the observed field
 #calculated in several k bins
 
-    def __init__(self, tot_k = 0., tot_mu = 0., tot_power = 0., Plin = 0.):
+    def __init__(self, minkhrec, maxkhrec, tot_k = 0., tot_mu = 0., tot_power = 0., Plin = 0., Pnlinsign = 0., nhalo = 0.):
+
+        self.min_k_rec = minkhrec
+        self.max_k_rec = maxkhrec
+
+        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
+        self.Pnlinsign_scipy2d = Pnlinsign_scipy2d
+
+        index_max = np.where(tot_k<maxkhrec)[0][-1]
+        index_min = np.where(tot_k>minkhrec)[0][0]
+
+        tot_power = tot_power[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+        Plin = Plin[index_min:index_max]
+        Pnlinsign = Pnlinsign[:, index_min:index_max]
+        tot_k = tot_k[index_min:index_max]
 
         self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)#This is for the Numerator 
-        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
+
         min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
+
+        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
         fill_value = np.inf
-        self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
+        #self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
+
+        def give_function(P2d, fill_value):
+            def give_P(q, mu):
+                return vectorize_2dinterp(P2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
+            return give_P
+
+        self.P = give_function(Ptot2_interp, fill_value)
+
+        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
+        Pidentity_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False) 
+
+        fill_value = 0.
+        
+        self.Pnlinsign_scipy = give_function(Pnlinsign_scipy2d, fill_value)
+
+        self.Pidentity_scipy = give_function(Pidentity_scipy2d, fill_value)
+
+        self.nhalo = nhalo
+
         self._F = {}
         self._Ffunc = {}
         self.q1, self.q2, self.mu = sp.symbols('q1 q2 mu')
@@ -183,8 +218,22 @@ class Estimator(object):
            return result
         return _integrand
 
+    
 
-    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+
+    def _outer_integral_vegas_for_g(self, function1, function2, f, K, mu_sign, a, extra_g = False): 
+        #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+        '''
+        Integral of the type: \frac{1}{(2\pi)^3}\int d^3\vec{q} g_{\alpha}(\vec{q}, \vec{K}-\vec{q})f(\vec{q},\vec{K})
+
+        If mu_sign = -1 it considers K --> -K 
+
+        function1 is calculated at q
+        function2 is calculated at \vec{K}-\vec{q}
+
+        If extra_g = True, then there is a g_{\alpha}^2 rather than a g
+        '''
+
         @vegas.batchintegrand
         def _integrand(x):
            mu = x[:, 0]*mu_sign
@@ -200,17 +249,33 @@ class Estimator(object):
            result *= f(a, q, K, mu)*function1(q, mu)*function2(modK_q, mu_p)
            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
 
+           if extra_g:
+               result *= f(a, q, K, mu)
+               result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
+
            return result
         return _integrand
 
 
-    def _double_outer_integral_vegas_for_g(self, function, f, K, mu_sign, mu_sign_prime, a): #for int g_a * function, where g_a is the weigh #for int g_a * function, where g_a is the weightt
+    def _double_outer_integral_vegas_for_g(self, function, f, K, subtract_qtot = True, mu_sign = 1, mu_sign_prime = 1, a = 'g'): 
+        '''
+        Integral of the type int_q int_q' g_a(q, K-q)g_a(q', K-q')f(K-(q+q'))
+
+        mu_sign = -1 flips angle between K and q, or q -->-q or K --> -K
+
+        mu_sign_prime = -1, same for q'
+
+        If subtract_qtot = False, then you have f(q+q')
+   
+        '''
+
+
         @vegas.batchintegrand
         def _integrand(x):
-           phi = x[:, 0]
-           phi_prime = x[:, 1]
+           phi = x[:, 0] #angle between q and K
+           phi_prime = x[:, 1] #angle between q' and K
            mu = np.cos(x[:, 0])*mu_sign
-           mu_prime = np.cos(x[:, 1])*mu_sign
+           mu_prime = np.cos(x[:, 1])*mu_sign_prime
            theta = x[:, 2]
            theta_prime = x[:, 3]
            q = x[:, 4]
@@ -218,24 +283,32 @@ class Estimator(object):
 
            modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
            
-           modK_q_prime = np.sqrt(K**2.+q_prime**2.-2*K*q_prime*mu_sign_prime)
+           modK_q_prime = np.sqrt(K**2.+q_prime**2.-2*K*q_prime*mu_prime)
 
            result = q**2./(2*np.pi)**3.*q_prime**2./(2*np.pi)**3.
 
-           qtot = (q*np.sin(theta)*np.cos(phi)+q_prime*np.sin(theta_prime)*np.cos(phi_prime))**2.
-           qtot += (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
+           #qtot = (q*np.sin(theta)*np.cos(phi)+q_prime*np.sin(theta_prime)*np.cos(phi_prime))**2.
+           #qtot += (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
+           qtot = (q*np.sin(theta)*np.sin(phi)+q_prime*np.sin(theta_prime)*np.sin(phi_prime))**2.
+           qtot += (q*np.cos(theta)*np.sin(phi)+q_prime*np.cos(theta_prime)*np.sin(phi_prime))**2.
            q_radial2 = (q*np.cos(phi)+q_prime*np.cos(phi_prime))**2.
-           q_radial = np.sqrt(q_radial2)
+           q_radial = np.sqrt(q_radial2) #parallel to direction of K
            qtot += q_radial2
            qtot = np.sqrt(qtot)
 
            mutot = q_radial/qtot
 
            mu_p = K**2.-q*K*mu
-           mu_p /= (K*modK_q)
+           mu_p /= (K*modK_q)*mu_sign #mu_sign, otherwise you have K+q and not -K-q
 
            mu_prime_p = K**2.-q_prime*K*mu_prime
-           mu_prime_p /= (K*modK_q_prime)
+           mu_prime_p /= (K*modK_q_prime)*mu_sign_prime
+
+           if subtract_qtot:
+               modK_qtot = np.sqrt(K**2.+qtot**2.-2*K*qtot*mutot)
+               qtot = modK_qtot
+               mutot = K**2.-qtot*K*mutot
+               mutot /= (K*modK_qtot)
 
            result *= f(a, q, K, mu)*f(a, q_prime, K, mu_prime)*function(qtot, mutot)
            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p)*2*self.P(q_prime, mu_prime)*self.P(modK_q_prime, mu_prime_p))
@@ -245,14 +318,15 @@ class Estimator(object):
 
 
     @vectorize
-    def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2, vegas_mode = False):
+    def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2, vegas_mode = False, extra_g = False):
 
         if vegas_mode:
 
             nitn = 100
             neval = 1000
 
-            function = self._outer_integral_vegas_for_g(function1, function2, self.f, K, mu_sign, a)
+            function = self._outer_integral_vegas_for_g(function1, function2, self.f, K, mu_sign, a, extra_g)
+
             integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 100)
             result = integ(function, nitn = nitn, neval = neval)
             integral = result.mean
@@ -261,21 +335,222 @@ class Estimator(object):
 
 
     @vectorize
-    def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime, minq_prime, maxq_prime, function, vegas_mode = False):
+    def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime, minq_prime, maxq_prime, function, subtract_qtot = True, vegas_mode = False):
 
         if vegas_mode:
 
             nitn = 100
             neval = 1000
 
-            function = self._double_outer_integral_vegas_for_g(function, self.f, K, mu_sign, mu_sign_prime, a)
+            function = self._double_outer_integral_vegas_for_g(function, self.f, K, subtract_qtot, mu_sign, mu_sign_prime, a)
             integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
             result = integ(function, nitn = nitn, neval = neval)
             integral = result.mean
 
+        else:
+            print('Non vegas_mode not implemented!')
+
         return integral
 
 
+    def get_bispectrum_shot_noise(self, a, minq, maxq, vegas_mode = True, verbose = True):
+
+        if minq is None:
+            minq = self.min_k_rec
+        if maxq is None:
+            maxq = self.max_k_rec
+
+        if verbose:
+            print(f'Calculating shot noise of cross correlation with input field for {a} estimator.')
+
+        self.bispectrum_shot = self._get_bis_shot_noise(a, self.Krange, self.murange, minq, maxq, vegas_mode = vegas_mode)
+            
+        return self.bispectrum_shot
+
+    def _get_bis_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
+        '''
+        function1 is calculated at q
+        function2 is calculated at \vec{K}-\vec{q}
+        '''
+
+        Naa = self.getN(a, a)
+
+        shot = 1/self.nhalo
+
+        #int g_a(q, K-q) * 1/n**2
+        shotfactor_zeroPpower = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False)
+        sh_bis_1 = (Naa*shotfactor_zeroPpower)*shot**2.
+
+        #int g_a(q, K-q) * 1/n * P(K)
+        sh_bis_3 = (shotfactor_zeroPpower*Naa)*self.Pnlinsign_scipy2d(K, mus)*shot
+
+        shotfactor_onePpower = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False)
+
+        #This one here gives:
+        #int g_a(q, K-q)P(q) and
+        #int g_a(q, K-q)P(K-q) = int g_a(K-q', q')P(q') with q'=K-q and volume of int is the same
+        #Both are equal thanks to symmetry of filter
+        sh_bis_2 = (shotfactor_onePpower*Naa)*shot
+
+        sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 
+
+        return sh_bis
+
+    
+    def get_trispectrum_shot_noise(self, a, minq = None, maxq = None, vegas_mode = True, verbose = True):
+        if verbose:
+            print(f'Calculating shot noise of autocorrelation of reconstruced field for {a} estimator.')
+
+        self.trispectrum_shot = self._get_tris_shot_noise(a, self.Krange, self.murange, minq, maxq, vegas_mode = vegas_mode, verbose = True)
+        return self.trispectrum_shot
+
+
+
+    def _get_tris_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
+
+        Naa = self.getN(a, a)
+
+        shot = self.nhalo
+
+        #function1 is function of just q
+        #function2 is function of K-q
+
+        # int g_a(q, K-q)P(q)
+        # mode is q+K-q=K
+        A11 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+
+        # int g_a(q, -K-q)
+        # mode is q-K-q=-K
+        A12 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+
+        A1 = A11*A12*Naa**2. #Naa**p, a power of one for each g_a
+
+        # int g_a(q, -K-q)P(q)
+        # mode is q-K-q=-K
+        A21 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+
+        # int g_a(q, K-q)
+        # mode is q+K-q=K
+        A22 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+
+        A2 = A21*A22*Naa**2. #Naa**p, a power of one for each g_a
+  
+        # int g_a(q, K-q)P(K-q)
+        A31 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode)
+
+        # int g_a(q, -K-q)
+        # mode is q-K-q=-K
+        A32 = A12
+
+        A3 = A31*A32*Naa**2. #Naa**p, a power of one for each g_a
+
+        # int g_a(q, -K-q)P(-K-q)
+        # mode is q-K-q=-K
+        A41 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode)
+
+        # int g_a(q, K-q)
+        A42 = A22
+
+        A4 = A41*A42*Naa**2. #Naa**p, a power of one for each g_a
+
+        A = (A1+A2+A3+A4)
+
+        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) 
+        #THIS TERM WITH DELTA OF DIRAC SHOULD BE ZERO FOR K \neq 0
+
+        B00 = 0.
+        B0 = 0.
+
+        # P(K) * int g_a(q, K-q) * int g_a(q, -K-q) 
+        B11 = self.Pnlinsign_scipy2d(K, mus)
+        B12 = A22 #int g_a(q, K-q)
+        B13 = A12 #int g_a(q, -K-q) 
+        B1 = B11*B12*B13*Naa**2.
+
+        # int g_a(q, K-q) g_a(-q,-(K-q))  
+        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
+        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
+        B21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
+        B2 = B21*Naa**2.
+
+        # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
+        # note for P isotropic P(q-K+q')=P(K-(q+q'))
+        B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode)
+        B3 = B31*Naa**2.
+
+        # int g_a(q, K-q) g_a(-q,-(K-q))  
+        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
+        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
+        B41 = B21
+        B4 = B41*Naa*2.       
+
+        # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
+        # note for P isotropic P(q-K+q')=P(K-(q+q'))
+        B51 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = False, vegas_mode = vegas_mode)
+        B5 = B51*Naa**2.
+
+        B = (B0+B1+B2+B3+B4+B5) #NOTE B0=0 as it is delta of dirac at K
+
+        n2_term = (A+B)*shot**2.
+
+        # int g_a(q, -K-q)
+        # mode is q-K-q=-K
+        C = A12
+
+        # int g_a(q, K-q)
+        # MODE IS q+K-q=K
+        D = A22
+ 
+        n3_term = (C+D)*shot**3
+
+        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) *P(q)
+        #this is zero
+
+        E11 = 0.
+        E1 = E11
+
+
+        #function1 is function of just q
+        #function2 is function of K-q
+
+        # int g_a(q, K-q) g_a(-q,-(K-q)) P(K-q) 
+        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
+        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
+        E21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode, extra_g = True)
+        E2 = E21*Naa**2.
+
+        # int g_a(q, K-q) g_a(-(K-q),-q) P(K-q) 
+        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
+        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
+        E31 = E21
+        E3 = E31*Naa**2.
+
+
+        #delta_D(-K) * int g_a(q, K-q) * P(q) * int g_a(q, -K-q)
+        #this is zero
+
+        E41 = 0.
+        E4 = E41
+
+        #int g_a(q, K-q) P(q) g_a(-q, -(K-q))
+        #Note again, here we have assumed g_a(-q, -(K-q))=g_a(q, K-q)
+        E51 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
+        E5 = E51*Naa**2.
+
+        #int g_a(q, K-q) P(q) g_a(-(K-q), -q)
+        #Note again, here we have assumed g_a(-(K-q), -q)=g_a(q, K-q)
+        E61 = E51
+        E6 = E51*Naa**2.
+
+        E = E1+E2+E3+E4+E5+E6
+
+        #Then you also have Bispectrum terms that I am ignoring here
+
+        n1_term = (E)*shot
+
+        result = n1_term+n2_term+n3_term
+
+        return result
 
     @vectorize
     def N(self, a, b, K, minq, maxq, vegas_mode = False):
@@ -299,7 +574,12 @@ class Estimator(object):
         return integral**-1.
 
 
-    def generateNs(self, K, minq, maxq, listKeys = None, vegas_mode = False, verbose = True):
+    def generateNs(self, K, mu, minq = None, maxq = None, listKeys = None, vegas_mode = False, verbose = True):
+
+        if minq is None:
+            minq = self.min_k_rec
+        if maxq is None:
+            maxq = self.max_k_rec
 
         values = self.keys
 
@@ -328,6 +608,7 @@ class Estimator(object):
 
         self.Nmatrix = retList
         self.Krange = K
+        self.murange = mu
 
         return None
 

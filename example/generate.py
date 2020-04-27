@@ -202,6 +202,7 @@ Ptot = (b_tot)**2.*Pnlin+shot
 
 Pnlinsign = (b_tot)**2.*Pnlin
 
+
 ''' CREATE ESTIMATOR OBJECT FOR NOISE CALCULATIONS '''
 
 vegas_mode = True
@@ -224,17 +225,17 @@ K = K[index_min:index_max]
 #Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
 #Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
 
-Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
-Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+#Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
+#Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
 
 Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
 
-min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
-fill_value = 0.
-Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
-Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
+#min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
+#fill_value = 0.
+#Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
+#Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
 
-est = es.Estimator(K, mu, Ptot, Plin_slice)
+est = es.Estimator(K, mu, Ptot, Plin_slice, Pnlinsign, nhalo)
 
 #this object is using sympy to define the different modecoupling kernels
 
@@ -258,11 +259,15 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh, 0.0005)
+K_of_interest = np.arange(minkh, maxkh, 0.01)
 mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
 
 #Now calculate different noise curves and store them inside the object
-est.generateNs(K_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
+est.generateNs(K_of_interest, mu_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
+
+print('New shot noise version')
+est.get_trispectrum_shot_noise('g', minkhrec, maxkhrec)
+print('Done new version')
 
 M = Mscipy(est.Krange)
 

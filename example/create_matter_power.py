@@ -26,7 +26,9 @@ def getM(cosmology, redshift, vector):
     Omega_m = cosmology.Omega0_m
     H0 = cosmology.H0    
     lightvel = 3.*10**5.
+    pert = nbodykit.cosmology.background.MatterDominated(Omega_m)
     M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
+    M *= (1/51.) / pert.D1(1/51.) #Thanks to Simon Foreman and Mathew Madhavacheril
     return M 
 
 ## Simple constant that appears in M
@@ -47,6 +49,7 @@ if len(sys.argv) == 1:
 ## Read configuration file
 
 values_file = str(sys.argv[1])
+
 
 with open(values_file, 'r') as stream:
     data = yaml.safe_load(stream)
@@ -74,7 +77,7 @@ maxk = float(values['data_creation_config']['maxk'])
 npoints = int(values['data_creation_config']['npoints']) 
 
 #Redshift
-z = np.array([int(values['data_creation_config']['z'])])
+z = np.array([float(values['data_creation_config']['z'])])
 
 #Cosmology Used
 cosmology_used = values['data_creation_config']['cosmology']
