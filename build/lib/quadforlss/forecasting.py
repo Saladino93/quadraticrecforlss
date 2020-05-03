@@ -777,8 +777,10 @@ class Forecaster(expression):
             muInt_factor = 1. - muInt_factor
 
         FisherPerModeLocal = FisherPerMode.copy()
+        # Since FisherPerMode is packed as [par, par, mu, K],
+        # taking FisherPerModeLocal *= muInt_factor will multiply by
+        # muInt_factor along the K axis, as desired
         FisherPerModeLocal *= muInt_factor
-        # FisherPerModeLocal = (FisherPerModeLocal.T * muInt_factor).T
 
         # function = scipy.interpolate.interp1d(K, FisherPerModeLocal,
         #                                       kind=interp_mode,
@@ -840,7 +842,7 @@ class Forecaster(expression):
                 result = [resultmp]
 
         # result = result[0]*V/(4.*np.pi**2.)
-        result = result[0]*(V/2)/(2.*np.pi)**2.
+        result = result[0]*V/(2.*np.pi)**2.
         return result
 
 
