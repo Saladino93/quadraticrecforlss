@@ -15,6 +15,8 @@ import scipy
 import scipy.interpolate
 import scipy.interpolate as si
 
+import scipy.interpolate as si
+
 import scipy.integrate
 
 from scipy.signal import savgol_filter
@@ -195,6 +197,8 @@ class Forecaster(expression):
         numpy_covariance_matrix = sp.lambdify(all_vars, self.cov_matrix, 'numpy')
         temp_cov = numpy_covariance_matrix(**var_values)
 
+        self.temp_cov_plotting = temp_cov
+
         ##quicky, but it should be done like above
 
         spectra = {}
@@ -298,6 +302,7 @@ class Forecaster(expression):
         cov_mat = numpy_covariance_matrix(**var_values)
         dera_cov_mat = numpy_dera_covariance_matrix(**var_values)
         derb_cov_mat = numpy_derb_covariance_matrix(**var_values)
+
 
         shape = cov_mat.shape
 
@@ -845,11 +850,12 @@ class Forecaster(expression):
         result = result[0]*V/(2.*np.pi)**2.
         return result
 
+    def plot_forecast(self, variable, error_versions, scipy_mode = True, kmin = 0.005, kmax = 0.05,
+                     volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$',
+                     ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = '',
+                     style = 'default'):
 
-    def plot_forecast(self, variable, error_versions, scipy_mode=True, kmin = 0.005, kmax = 0.05,
-                      volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$',
-                      ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = '',
-                      rescale_y = 1.):
+        plt.style.use(style)
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
         plt.title(title)
         plt.xlabel(xlabel)

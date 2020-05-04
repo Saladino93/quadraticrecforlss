@@ -50,6 +50,11 @@ direc = base_dir+direc+'/'
 with open(direc+data_dir+dic_name, 'rb') as handle:
     dic = pickle.load(handle, encoding = 'latin1')
 
+# dic['Ngg'] *= 0.
+# dic['sh_tris'] *= 0.
+# dic['sh_bis'] *= 0.
+
+#dic['Ngg']*=1e-2
 
 # Get lists of variables: all defined variables, variables varying in Fisher
 # matrix, dict of auto and cross spectra for data covariance matrix, and
@@ -210,6 +215,24 @@ kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = False,
 np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl[0,:]*fnlScaling])
 # np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',sig_fnl*fnlScaling)
 
+
+# print(forecast.get_error('bs2', marginalized = False, integrated = False,
+#               kmin = K.min(), kmax = K.max(),
+#               volume = values['survey_config']['geometry']['volume']))
+#
+# cov_dict = {'Pgg': cov_dict['Pgg']}
+# forecast = forecasting.Forecaster(K, priors, *variables_list)
+# forecast.add_cov_matrix(cov_dict)
+# variables_list_fisher = ['b10', 'fnl', 'bs2'] #, 'f']
+# forecast.get_fisher_matrix(variables_list_fisher, var_values = var_values)
+
+#error_versions = {'Integrated non marginalized': {'marginalized': False, 'integrated': True}, 'Integrated marginalized': {'marginalized': True, 'integrated': True}}
+#for v in variables_of_interest:
+#    forecast.plot_forecast(v, error_versions, scipy_mode = False, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'g_only.png')
+
+print(forecast.get_error('bs2', marginalized = False, integrated = False,
+              kmin = K.min(), kmax = K.max(),
+              volume = values['survey_config']['geometry']['volume']))
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
