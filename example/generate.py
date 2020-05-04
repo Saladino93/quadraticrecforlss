@@ -71,6 +71,13 @@ Mscipy = scipy.interpolate.interp1d(kM, Mval)
 
 M = implemented_function('M', Mscipy)
 
+tck = scipy.interpolate.splrep(kM, Mval)
+
+def M2(k):
+    return scipy.interpolate.splev(k, tck)
+
+M = implemented_function('M', M2)    
+
 # Define min and max k values, making sure M is defined over the full k range
 minK = np.maximum(kM.min(), K.min())
 maxK = np.minimum(kM.max(), K.max())
@@ -217,10 +224,10 @@ if vegas_mode:
 index_max = np.where(K<maxkhrec)[0][-1]
 index_min = np.where(K>minkhrec)[0][0]
 
-Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
-Plin_slice = Plin[index_min:index_max]
-Pnlinsign = Pnlinsign[:, index_min:index_max]
-K = K[index_min:index_max]
+#Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+#Plin_slice = Plin[index_min:index_max]
+#Pnlinsign = Pnlinsign[:, index_min:index_max]
+#K = K[index_min:index_max]
 
 #Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
 #Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
@@ -228,46 +235,51 @@ K = K[index_min:index_max]
 #Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
 #Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
 
-Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
+#Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
 
 #min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
 #fill_value = 0.
 #Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
 #Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
 
-est = es.Estimator(K, mu, Ptot, Plin_slice, Pnlinsign, nhalo)
+est = es.Estimator(minkhrec, maxkhrec, K, mu, Ptot, Plin, Pnlinsign, b_tot, nhalo)
 
 #this object is using sympy to define the different modecoupling kernels
 
+g = b10+21/17*b20
+s = b10
+t = b10+7/2*bs2
+phiphi = fnl*b10
+c01 = fnl*2*deltac*(b10-1)
+c11 = fnl*(2./a1)*(deltac*(b20-2*(a1+a2)*(b10-1.))-a1**2.*(b10-1.))+2.*fnl*deltac*(b10-1.)
+c02 = fnl**2*4*deltac*((deltac/a1**2.)*(b20-2.*(a1+a2)*(b10-1.))-2.*(b10-1.))
+
+
 # F_g = 17/21
-est.addF('g', 17./21.)
+est.addF('g', 17./21., ca = g)
 # F_s = (1/2) * (q_2/q_1 + q_1/q_2) * \vec{q}_1\cdot\vec{q}_2 / (q_1 q_2)
-est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu)
+est.addF('s', 0.5*(est.q2/est.q1+est.q1/est.q2)*est.mu, ca = s)
 # F_t = (2/7) * [ (\vec{q}_1\cdot\vec{q}_2)^2 / (q_1^2 q_2^2) - 1/3 ]
-est.addF('t', (2./7.)*est.mu**2.-1./3.)
+est.addF('t', (2./7.)*est.mu**2.-1./3., ca = t)
 # F_{11} = (1/2) * (1/M(q_1) + 1/M(q_2))
-est.addF('c11', 0.5*(1./M(est.q1)+1./M(est.q2)))
+est.addF('c11', 0.5*(1./M(est.q1)+1./M(est.q2)), ca = c11)
 # F_{01} = (1/2) * \vec{q}_1\cdot\vec{q}_2 / (q_1 q_2)
 #            * ( 1/(q_1^2 M(q_2)) + 1/(q_2^2 M(q_1)) )
 est.addF('c01', 0.5 * est.mu*est.q1*est.q2 \
-                * (1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))) )
+                * (1./(est.q1**2.*M(est.q2))+1./(est.q2**2.*M(est.q1))), ca = c01)
 # F_{02} = 1 / (M(q_1) + M(q_2))
-est.addF('c02', (1./(M(est.q1)*M(est.q2))))
+est.addF('c02', (1./(M(est.q1)*M(est.q2))), ca = c02)
 # F_{\phi\phi} = M(|\vec{q}_1+\vec{q}_2|) / (M(q_1) M(q_2))
 est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
-                    * (1./M(est.q1)) * (1./M(est.q2)) )
+                    * (1./M(est.q1)) * (1./M(est.q2)), ca = phiphi)
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh, 0.01)
+K_of_interest = np.arange(minkh, maxkh, 0.2)
 mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
 
 #Now calculate different noise curves and store them inside the object
 est.generateNs(K_of_interest, mu_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
-
-print('New shot noise version')
-est.get_trispectrum_shot_noise('g', minkhrec, maxkhrec)
-print('Done new version')
 
 M = Mscipy(est.Krange)
 
@@ -294,11 +306,19 @@ for a, b in listKeys:
 
 new_bias = 1000 ##to be decided if I have to use sympy also here
 
+sh_bis = est.get_bispectrum_shot_noise('g', minkhrec, maxkhrec)
+import time
+s = time.time()
+sh_tris = est.get_trispectrum_shot_noise('g', minkhrec, maxkhrec)
+delta = time.time()-s
+print(f'Total time for trispectrum {delta}')
 '''
 #Now calculate shot noise contributions to the bispectrum
 Schematically speaking
 int_q g_a*sum of terms
  g_a = N_a * f_a/(2*P*P)
+'''
+
 '''
 
 print('Getting bispectrum shot noise contribution')
@@ -342,6 +362,9 @@ sh_tris_4_a = shotfactor_double*Ngg**2.*shot**2.
 sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)
 
 sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
+
+'''
+
 
 for vv in variables_list:
     if 'N' not in vv:
