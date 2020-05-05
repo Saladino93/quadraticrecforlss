@@ -236,6 +236,9 @@ class Estimator(object):
 
 
     def f(self, a, q, K, mu):
+        #if mu_sign = -1, mu should be already corrected for it outside
+        #use f general, it is better and more bullet proof
+        #Note if K --> -K, expressions should be the same, as it is accounted in mu sign change and kernel is ok for this
 
         modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
 
@@ -353,12 +356,12 @@ class Estimator(object):
            mu = x[:, 0]*mu_sign
            q = x[:, 1]
 
-           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu) #if mu_sign negative here it is like a sum
 
-           result = 2*np.pi*q**2./(2*np.pi)**3.
+           result = 2*np.pi*q**2./(2*np.pi)**3. #2pi is the integration over angle on plane perpendicular to K already done
 
-           mu_p = K**2.-q*K*mu
-           mu_p /= (K*modK_q)
+           mu_p = K**2.-q*K*mu #if mu_sign negative here it is like a sum
+           mu_p /= (K*modK_q)*mu_sign #that that mu_p is sign of -K-q relative to K
 
            result *= f(a, q, K, mu)*function1(q, mu)*function2(modK_q, mu_p)
            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
@@ -529,7 +532,7 @@ class Estimator(object):
             nitn = 100
             neval = 1000
 
-            if version2:
+            if version2:#newer version
                 integrand = self._double_outer_integral_vegas_for_g2(function = function, K = K, subtract_qtot = subtract_qtot, a = a)
             else:
                 integrand = self._double_outer_integral_vegas_for_g(function, self.f, K, subtract_qtot, mu_sign, mu_sign_prime, a)
@@ -627,6 +630,7 @@ class Estimator(object):
            
            #calc B(K, q', -K-q')
            Bg_1 = self._get_tot_bispectrum_signal(a[0], b[0], c[0], np.cos(a[2]), np.cos(b[2]), np.cos(c[2]), muab, muac, mubc)
+
            
            #calc B(-(q+q'), q, q')
 
@@ -653,7 +657,7 @@ class Estimator(object):
 
            #calc B(-K, q, K-q)
            Bg_3 = self._get_tot_bispectrum_signal(a[0], b[0], c[0], np.cos(a[2]), np.cos(b[2]), np.cos(c[2]), muab, muac, mubc)
-           
+
 
            B_g = Bg_1+4*Bg_2+Bg_3 #Bg_2 is for 4 times s several terms are identical by substituion and symmetry
 
@@ -676,17 +680,22 @@ class Estimator(object):
 
 
 
-    def get_bispectrum_shot_noise(self, a, minq, maxq, vegas_mode = True, verbose = True):
+    def get_bispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
 
         if minq is None:
             minq = self.min_k_rec
         if maxq is None:
             maxq = self.max_k_rec
+        if K is None:
+            K = self.Krange
+            murange = self.murange 
+        else:
+            murange = np.linspace(-1, 1, len(K))
 
         if verbose:
             print(f'Calculating shot noise of cross correlation with input field for {a} estimator.')
 
-        self.bispectrum_shot = self._get_bis_shot_noise(a, self.Krange, self.murange, minq, maxq, vegas_mode = vegas_mode)
+        self.bispectrum_shot = self._get_bis_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
             
         return self.bispectrum_shot
 
@@ -696,7 +705,7 @@ class Estimator(object):
         function2 is calculated at \vec{K}-\vec{q}
         '''
 
-        Naa = self.getN(a, a)
+        Naa = self.getN(a, a, K)
 
         shot = 1/self.nhalo
 
@@ -844,7 +853,7 @@ class Estimator(object):
 
 
     
-    def get_trispectrum_shot_noise(self, a, minq = None, maxq = None, vegas_mode = True, verbose = True):
+    def get_trispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
         if verbose:
             print(f'Calculating shot noise of autocorrelation of reconstruced field for {a} estimator.')
 
@@ -855,7 +864,17 @@ class Estimator(object):
         self.Ftot = Ftot 
         self.Ftot_func = sp.lambdify([self.q1, self.q2, self.mu], Ftot, 'numpy')
 
-        self.trispectrum_shot = self._get_tris_shot_noise(a, self.Krange, self.murange, minq, maxq, vegas_mode = vegas_mode)
+        if minq is None:
+            minq = self.min_k_rec
+        if maxq is None:
+            maxq = self.max_k_rec
+        if K is None:
+            K = self.Krange
+            murange = self.murange
+        else:
+            murange = np.linspace(-1, 1, len(K))
+
+        self.trispectrum_shot = self._get_tris_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
 
         return self.trispectrum_shot
 
@@ -863,9 +882,9 @@ class Estimator(object):
 
     def _get_tris_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
 
-        Naa = self.getN(a, a)
+        Naa = self.getN(a, a, K)
 
-        shot = self.nhalo
+        shot = 1/self.nhalo
 
         #function1 is function of just q
         #function2 is function of K-q
@@ -933,10 +952,8 @@ class Estimator(object):
         B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode)
         B3 = B31*Naa**2.
         
-        B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
-        
-        
-
+        #B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
+        #print(np.max(np.abs(B31-B311)/B311))
    
         # int g_a(q, K-q) g_a(-q,-(K-q))  
         # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
@@ -961,7 +978,8 @@ class Estimator(object):
         # MODE IS q+K-q=K
         D = A22
  
-        n3_term = (C+D)*shot**3
+        n3_term = (C*D*Naa**2.)*shot**3
+        
 
         #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) *P(q)
         #this is zero
@@ -978,7 +996,7 @@ class Estimator(object):
         # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
         E21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode, extra_g = True)
         E2 = E21*Naa**2.
-
+        
         # int g_a(q, K-q) g_a(-(K-q),-q) P(K-q) 
         # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
         # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
@@ -1056,6 +1074,7 @@ class Estimator(object):
             print('Key combs to calculate is, ', listKeys)
         
         retList = {}
+        retList_interpolated = {}
 
         for key1, key2 in listKeys:
             retList[key1+","+key2] = []
@@ -1065,25 +1084,33 @@ class Estimator(object):
                 print('Computing N integral for (%s,%s)' % (a,b))
             N = self.N(a, b, K, minq, maxq, vegas_mode)
             retList[a+","+b]= N#.append(N) #if I do not vectorize generateNs I could assign retList the whole N, without append
+            Ninterp = si.interp1d(K, N)
+            retList_interpolated[a+","+b] = Ninterp
+            retList_interpolated[b+","+a] = retList_interpolated[a+","+b]
 
-        for a, b in listKeys:
-            retList[b+","+a] = np.array(retList[a+","+b])
+        #for a, b in listKeys:
+        #    retList[b+","+a] = np.array(retList[a+","+b])
 
         self.Nmatrix = retList
+        self.Nmatrix_interpolated = retList_interpolated
         self.Krange = K
         self.murange = mu
 
         return None
 
     @vectorize
-    def getN(self, a, b, K = None):
+    def getN(self, a, b, K = None, interpolated = True):
         if K is None:
             K = self.Krange
-        Kindex = np.where(self.Krange == K)[0]#[0]
         try:
-            return self.Nmatrix[a+","+b][Kindex]
-        except KeyError:
-            return self.Nmatrix[b+","+a][Kindex]
+            if interpolated:
+                result = self.Nmatrix_interpolated[a+","+b](K)
+            else:
+                Kindex = np.where(self.Krange == K)[0]
+                result = self.Nmatrix[a+","+b][Kindex]
+            return result
+        #except KeyError:
+        #    return self.Nmatrix[b+","+a][Kindex] #N is symm, so it is useless, but I leave for completeness
         except:
             print("Key combination not found")
             raise

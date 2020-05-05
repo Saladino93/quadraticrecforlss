@@ -214,34 +214,6 @@ Pnlinsign = (b_tot)**2.*Pnlin
 
 vegas_mode = True
 
-if vegas_mode:
-    sel = K > maxkhrec
-    K_mesh, mu_mesh = np.meshgrid(1/Mscipy(K), mu)
-    #Ptot[K_mesh > maxkhrec] = 1e90 #CHECK FOR OLD CODE THIS IS OK
-    #Pnlinsign[K > maxkhrec] = 0
-    #Pnlinsign[K < minkhrec] = 0
-
-index_max = np.where(K<maxkhrec)[0][-1]
-index_min = np.where(K>minkhrec)[0][0]
-
-#Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
-#Plin_slice = Plin[index_min:index_max]
-#Pnlinsign = Pnlinsign[:, index_min:index_max]
-#K = K[index_min:index_max]
-
-#Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
-#Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
-
-#Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
-#Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
-
-#Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
-
-#min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
-#fill_value = 0.
-#Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
-#Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
-
 est = es.Estimator(minkhrec, maxkhrec, K, mu, Ptot, Plin, Pnlinsign, b_tot, nhalo)
 
 #this object is using sympy to define the different modecoupling kernels
@@ -275,11 +247,12 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh, 0.2)
+K_of_interest = np.arange(minkh, maxkh, 0.02)
 mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
 
 #Now calculate different noise curves and store them inside the object
 est.generateNs(K_of_interest, mu_of_interest, minkhrec, maxkhrec, specific_combs, vegas_mode = vegas_mode)
+
 
 M = Mscipy(est.Krange)
 
@@ -303,15 +276,19 @@ for a, b in listKeys:
     dic['N'+a+b] = est.getN(a, b)
     dic['N'+b+a] = dic['N'+a+b]
 
+new_bias = 0.
+for k in est.keys:
+    new_bias += b10*est.getN('g', 'g')*est.getN('g', k)**-1.*est.c_a[k]
 
-new_bias = 1000 ##to be decided if I have to use sympy also here
-
-sh_bis = est.get_bispectrum_shot_noise('g', minkhrec, maxkhrec)
+sh_bis = est.get_bispectrum_shot_noise('g', K = est.Krange, minkhrec, maxkhrec)
 import time
 s = time.time()
-sh_tris = est.get_trispectrum_shot_noise('g', minkhrec, maxkhrec)
+sh_tris = est.get_trispectrum_shot_noise('g', K = est.Krange, minq = minkhrec, maxq = maxkhrec)
 delta = time.time()-s
 print(f'Total time for trispectrum {delta}')
+
+
+
 '''
 #Now calculate shot noise contributions to the bispectrum
 Schematically speaking
@@ -319,7 +296,28 @@ int_q g_a*sum of terms
  g_a = N_a * f_a/(2*P*P)
 '''
 
-'''
+
+
+index_max = np.where(K<maxkhrec)[0][-1]
+index_min = np.where(K>minkhrec)[0][0]
+
+Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+Plin_slice = Plin[index_min:index_max]
+Pnlinsign = Pnlinsign[:, index_min:index_max]
+K = K[index_min:index_max]
+
+Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+
+Pnlinsign_scipy2dd = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy2dd = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+
+Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
+
+min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
+fill_value = 0.
+Pnlinsign_scipy2d = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2dd, q, mu, min_x1, max_x1, fill_value = fill_value)
+Pidentity_scipy2d = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2dd, q, mu, min_x1, max_x1, fill_value = fill_value)
 
 print('Getting bispectrum shot noise contribution')
 
@@ -328,12 +326,12 @@ Ngg = est.getN('g', 'g')
 a = 'g'
 mu_sign = 1.
 
-shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pidentity_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
 sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
 
 sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)*shot
 
-shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
 
 sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
 
@@ -343,12 +341,13 @@ print('Getting trispectrum shot noise contribution')
 
 #Now calculate shot noise contributions to the trispectrum
 
-shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-shotfactor_onePpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
+shotfactor_onePpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
 
-shotfactor_twoPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pnlinsign_scipy, vegas_mode = vegas_mode)
+shotfactor_twoPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pnlinsign_scipy2d, vegas_mode = vegas_mode)
 
-shotfactor_double = est.double_integrate_for_shot(a, K_of_interest, mu_sign, minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, vegas_mode = vegas_mode)
+
+shotfactor_double = est.double_integrate_for_shot(a, K_of_interest, mu_sign, minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, vegas_mode = vegas_mode)
 
 sh_tris_1 = (shotfactor_zeroPpower*Ngg)**2.*shot**3
 
@@ -363,7 +362,21 @@ sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy2d(K_of_i
 
 sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
 
-'''
+
+print('sh_tris_1 n3', sh_tris_1)
+print(sh_tris_2)
+print(sh_tris_3_a)
+print(sh_tris_3_b)
+print(sh_tris_4_a)
+print(sh_tris_4_b)
+print(sh_tris)
+
+
+print('')
+print(est.trispectrum_shot)
+print(sh_tris)
+
+print(est.trispectrum_shot[0, :]/est.getN('g', 'g'))
 
 
 for vv in variables_list:
