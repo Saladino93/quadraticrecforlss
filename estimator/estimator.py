@@ -981,6 +981,8 @@ class Estimator(object):
         n3_term = (C*D*Naa**2.)*shot**3
         
 
+        '''
+
         #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) *P(q)
         #this is zero
 
@@ -1021,13 +1023,14 @@ class Estimator(object):
         E6 = E51*Naa**2.
 
         E = E1+E2+E3+E4+E5+E6
+        '''
 
         #Then you also have Bispectrum terms
 
         F = self.double_integrate_bispectrum_for_shot(a, K, minq, maxq, minq, maxq, vegas_mode = vegas_mode)
         F *= Naa**2.
         
-        n1_term = (E+F)*shot
+        n1_term = (F)*shot
 
         result = n1_term+n2_term+n3_term
 
