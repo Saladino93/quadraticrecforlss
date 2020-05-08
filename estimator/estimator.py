@@ -28,7 +28,9 @@ def vectorize_2dinterp(function, x1, x2, min_x1, max_x1, fill_value):
     
     #E = A*B#*C*D
     mask = A*B
-    mask[~mask] = fill_value
+    o = mask.astype(float)
+    o[~mask] = fill_value
+    mask = o
     #mask = np.ones(x1.shape)
     #mask[~E] = fill_value
     
@@ -49,7 +51,9 @@ def vectorize_2dinterp_bivariate(ev, x1, x2, min_x1, max_x1, fill_value):
     E = A*B
     mask = E
 
-    mask[~mask] = fill_value
+    o = mask.astype(float)
+    o[~mask] = fill_value
+    mask = o
     
     temp = ev(x2, x1) #NOTE IS SWAPPED HERE!
     
@@ -71,70 +75,16 @@ class Estimator(object):
         Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
         self.Pnlinsign_scipy2d = Pnlinsign_scipy2d
 
-        index_max = np.where(tot_k<maxkhrec)[0][-1]
-        index_min = np.where(tot_k>minkhrec)[0][0]
-
-        tot_power = tot_power[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
-        Plin = Plin[index_min:index_max]
-        Pnlinsign = Pnlinsign[:, index_min:index_max]
-        tot_k = tot_k[index_min:index_max]
-        bias = bias[:, index_min:index_max]
-
         Plinsign_times_bias = (bias)*Plin
 
         Plinsign_times_bias_oned = (bias[0, :])*Plin #ASSUMES NO MU DEPENDENCE, useful for tris shot noise bispec part, faster
         tck = si.splrep(tot_k, Plinsign_times_bias_oned)
 
         def Pxbias(k):
-            if k < minkhrec or k > maxkhrec:
-                return 0.
             return si.splev(k, tck)
 
         self.Plinsign_times_bias_scipy_oned = Pxbias
 
-
-        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)#This is for the Numerator 
-
-        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
-
-        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
-        fill_value = np.inf
-        #self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
-
-        def give_function(P2d, fill_value):
-            def give_P(q, mu):
-                return vectorize_2dinterp(P2d, q, mu, min_x1, max_x1, fill_value)
-            return give_P
-
-        def give_function_bivariate(P2dev, fill_value):
-            def give_P(q, mu):
-                return vectorize_2dinterp_bivariate(P2dev, q, mu, min_x1, max_x1, fill_value)
-            return give_P
-
-
-        self.P = give_function(Ptot2_interp, fill_value)
-
-        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
-        Pidentity_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False) 
-        Plinsign_times_bias_scipy2d = interp2d(tot_k, tot_mu, Plinsign_times_bias, fill_value = 0., bounds_error = False)
-        
-        fill_value = 0.
-        
-        self.Pnlinsign_scipy = give_function(Pnlinsign_scipy2d, fill_value)
-
-        self.Pidentity_scipy = give_function(Pidentity_scipy2d, fill_value)
-
-        self.Plinsign_times_bias_scipy_2 = give_function(Plinsign_times_bias_scipy2d, fill_value)
-
-        '''
-        ev = si.RectBivariateSpline(tot_mu, tot_k, tot_power).ev
-        self.P = give_function_bivariate(ev, fill_value = np.inf)
-        ev = si.RectBivariateSpline(tot_mu, tot_k, Pnlinsign).ev
-        self.Pnlinsign_scipy = give_function_bivariate(ev, fill_value = 0.)
-        ev = si.RectBivariateSpline(tot_mu, tot_k, Pnlinsign*0.+1.).ev
-        self.Pidentity_scipy = give_function_bivariate(ev, fill_value = 0.)
-        '''
-        
         ev = si.RectBivariateSpline(tot_mu, tot_k, Plinsign_times_bias).ev
 
         def func(x1, x2):
@@ -161,9 +111,54 @@ class Estimator(object):
 
         self.Plinsign_times_bias_scipy = func
 
+        fill_value = 0.
 
-        bias2d = interp2d(tot_k, tot_mu, bias, fill_value = 0., bounds_error = False) 
-        self.bias = give_function(bias2d, fill_value)
+        #bias2d = interp2d(tot_k, tot_mu, bias, fill_value = 0., bounds_error = False) 
+        #self.bias = give_function(bias2d, fill_value)
+
+
+        index_max = np.where(tot_k<maxkhrec)[0][-1]
+        index_min = np.where(tot_k>minkhrec)[0][0]
+
+        tot_power = tot_power[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+        Plin = Plin[index_min:index_max]
+        Pnlinsign = Pnlinsign[:, index_min:index_max]
+        tot_k = tot_k[index_min:index_max]
+        bias = bias[:, index_min:index_max]
+
+
+
+        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)#This is for the Numerator 
+
+        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
+
+        def give_function(P2d, fill_value):
+            def give_P(q, mu):
+                return vectorize_2dinterp(P2d, q, mu, min_x1, max_x1, fill_value)
+            return give_P
+
+        def give_function_bivariate(P2dev, fill_value):
+            def give_P(q, mu):
+                return vectorize_2dinterp_bivariate(P2dev, q, mu, min_x1, max_x1, fill_value)
+            return give_P
+
+        
+        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
+        fill_value = np.inf
+        #self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
+        self.P = give_function(Ptot2_interp, fill_value)
+
+        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
+        Pidentity_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False) 
+        #Plinsign_times_bias_scipy2d = interp2d(tot_k, tot_mu, Plinsign_times_bias, fill_value = 0., bounds_error = False)
+        
+        fill_value = 0.
+        
+        self.Pnlinsign_scipy = give_function(Pnlinsign_scipy2d, fill_value)
+
+        self.Pidentity_scipy = give_function(Pidentity_scipy2d, fill_value)
+
+        #self.Plinsign_times_bias_scipy_2 = give_function(Plinsign_times_bias_scipy2d, fill_value)
 
         self.nhalo = nhalo
 
