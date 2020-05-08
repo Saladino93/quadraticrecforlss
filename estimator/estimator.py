@@ -86,6 +86,8 @@ class Estimator(object):
         tck = si.splrep(tot_k, Plinsign_times_bias_oned)
 
         def Pxbias(k):
+            if k < minkhrec or k > maxkhrec:
+                return 0.
             return si.splev(k, tck)
 
         self.Plinsign_times_bias_scipy_oned = Pxbias
@@ -744,6 +746,8 @@ class Estimator(object):
         
         second_order *= 2*self.Plinsign_times_bias_scipy_oned(k1)*self.Plinsign_times_bias_scipy_oned(k2) #for faster calc
 
+        print(second_order)
+
         #second_order *= 2*self.bias(k1, mu1)*self.bias(k2, mu2)
         #second_order *= self.thP(k1)*self.thP(k2) #self.thP is Plin
 
@@ -929,11 +933,7 @@ class Estimator(object):
 
         A = (A1+A2+A3+A4)
 
-        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) 
-        #THIS TERM WITH DELTA OF DIRAC SHOULD BE ZERO FOR K \neq 0
-
-        B00 = 0.
-        B0 = 0.
+        ############
 
         # P(K) * int g_a(q, K-q) * int g_a(q, -K-q) 
         B11 = self.Pnlinsign_scipy2d(K, mus)
@@ -941,13 +941,9 @@ class Estimator(object):
         B13 = A12 #int g_a(q, -K-q) 
         B1 = B11*B12*B13*Naa**2.
 
-        # int g_a(q, K-q) g_a(-q,-(K-q))  
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        B21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
-        B2 = B21*Naa**2. #NOTE B21**2.?
 
-        # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
+        # int g_a(q, K-q) g_a(q', -K-q') P(q-K-q')
+        # 
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
         B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode)
         B3 = B31*Naa**2.
@@ -955,18 +951,13 @@ class Estimator(object):
         #B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
         #print(np.max(np.abs(B31-B311)/B311))
    
-        # int g_a(q, K-q) g_a(-q,-(K-q))  
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        B41 = B21
-        B4 = B41*Naa*2.       
-
+      
         # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
         B51 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = False, vegas_mode = vegas_mode)
         B5 = B51*Naa**2.
 
-        B = (B0+B1+B2+B3+B4+B5) #NOTE B0=0 as it is delta of dirac at K
+        B = (B1+B3+B5) #NOTE B0=0 as it is delta of dirac at K
 
         n2_term = (A+B)*shot**2.
 
@@ -980,51 +971,6 @@ class Estimator(object):
  
         n3_term = (C*D*Naa**2.)*shot**3
         
-
-        '''
-
-        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) *P(q)
-        #this is zero
-
-        E11 = 0.
-        E1 = E11
-
-
-        #function1 is function of just q
-        #function2 is function of K-q
-
-        # int g_a(q, K-q) g_a(-q,-(K-q)) P(K-q) 
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        E21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode, extra_g = True)
-        E2 = E21*Naa**2.
-        
-        # int g_a(q, K-q) g_a(-(K-q),-q) P(K-q) 
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        E31 = E21
-        E3 = E31*Naa**2.
-
-
-        #delta_D(-K) * int g_a(q, K-q) * P(q) * int g_a(q, -K-q)
-        #this is zero
-
-        E41 = 0.
-        E4 = E41
-
-        #int g_a(q, K-q) P(q) g_a(-q, -(K-q))
-        #Note again, here we have assumed g_a(-q, -(K-q))=g_a(q, K-q)
-        E51 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
-        E5 = E51*Naa**2.
-
-        #int g_a(q, K-q) P(q) g_a(-(K-q), -q)
-        #Note again, here we have assumed g_a(-(K-q), -q)=g_a(q, K-q)
-        E61 = E51
-        E6 = E51*Naa**2.
-
-        E = E1+E2+E3+E4+E5+E6
-        '''
-
         #Then you also have Bispectrum terms
 
         F = self.double_integrate_bispectrum_for_shot(a, K, minq, maxq, minq, maxq, vegas_mode = vegas_mode)
@@ -1033,6 +979,10 @@ class Estimator(object):
         n1_term = (F)*shot
 
         result = n1_term+n2_term+n3_term
+
+        #print(n1_term)
+        #print(n2_term)
+        #print(n3_term)
 
         return result
 
