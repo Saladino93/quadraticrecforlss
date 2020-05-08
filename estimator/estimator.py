@@ -746,8 +746,6 @@ class Estimator(object):
         
         second_order *= 2*self.Plinsign_times_bias_scipy_oned(k1)*self.Plinsign_times_bias_scipy_oned(k2) #for faster calc
 
-        print(second_order)
-
         #second_order *= 2*self.bias(k1, mu1)*self.bias(k2, mu2)
         #second_order *= self.thP(k1)*self.thP(k2) #self.thP is Plin
 
