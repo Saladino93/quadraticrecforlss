@@ -209,7 +209,8 @@ times the NON linear power spectrum plus the shot noise contribution of the trac
 
 shot = 1/nhalo
 
-mu = np.linspace(-1, 1, len(K))
+# mu = np.linspace(-1, 1, len(K))
+mu = np.linspace(-1, 1, 100)
 
 M_K = Mscipy(K)
 inv_M_mesh, mu_mesh = np.meshgrid(1/M_K, mu)
@@ -217,7 +218,6 @@ inv_M_mesh, mu_mesh = np.meshgrid(1/M_K, mu)
 b_tot = b10+(betaf*fnl)*inv_M_mesh+f*mu_mesh**2.
 
 Ptot = (b_tot)**2.*Pnlin+shot
-print('ptot shape',Ptot.shape, b_tot.shape, Pnlin.shape, mu.shape)
 
 Pnlinsign = (b_tot)**2.*Pnlin
 
@@ -259,8 +259,8 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-# K_of_interest = np.geomspace(minkh, maxkh, 50)
-K_of_interest = np.geomspace(minkh, maxkh, 2)
+K_of_interest = np.geomspace(minkh, maxkh, 50)
+# K_of_interest = np.geomspace(minkh, maxkh, 2)
 # K_of_interest = np.arange(minkh, maxkh+0.001, 0.001)
 # K_of_interest = np.arange(minkh, maxkh, 0.01)
 mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
@@ -308,8 +308,6 @@ if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
         new_bias += b10*est.getN('g', 'g')*est.getN('g', k)**-1.*est.c_a[k]
 
     import time
-    ###SJF
-    # K_for_shot = np.geomspace(minkh, maxkh, 10)
     K_for_shot = np.geomspace(minkh, maxkh, 10)
     print('K_for_shot:', K_for_shot)
     s = time.time()
@@ -323,10 +321,9 @@ if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
     sh_tris = est.get_trispectrum_shot_noise('g', K = K_for_shot, minq = minkhrec, maxq = maxkhrec)
     delta = time.time()-s
     print(f'Total time for trispectrum shot noise: %g s' % delta)
-    print('sh_bis:', sh_bis)
-    print('sh_tris:', sh_tris)
+    # print('sh_bis:', sh_bis)
+    # print('sh_tris:', sh_tris)
 
-    ##SJF
     # Interpolate bispectrum and trispectrum shot noise onto full K range
     sh_bis_interp = scipy.interpolate.interp1d(K_for_shot, sh_bis[0])
     sh_tris_interp = scipy.interpolate.interp1d(K_for_shot, sh_tris[0])
