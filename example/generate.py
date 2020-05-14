@@ -30,7 +30,7 @@ import yaml
 # Read input values and spectra
 #################################
 
-# Read forecast directory from command line
+# Read forecast config file from command line
 if len(sys.argv) == 1:
     print('Choose your configuration file!')
     sys.exit()
@@ -217,6 +217,7 @@ inv_M_mesh, mu_mesh = np.meshgrid(1/M_K, mu)
 b_tot = b10+(betaf*fnl)*inv_M_mesh+f*mu_mesh**2.
 
 Ptot = (b_tot)**2.*Pnlin+shot
+print('ptot shape',Ptot.shape, b_tot.shape, Pnlin.shape, mu.shape)
 
 Pnlinsign = (b_tot)**2.*Pnlin
 
@@ -224,34 +225,6 @@ Pnlinsign = (b_tot)**2.*Pnlin
 ''' CREATE ESTIMATOR OBJECT FOR NOISE CALCULATIONS '''
 
 vegas_mode = True
-
-if vegas_mode:
-    sel = K > maxkhrec
-    K_mesh, mu_mesh = np.meshgrid(1/Mscipy(K), mu)
-    #Ptot[K_mesh > maxkhrec] = 1e90 #CHECK FOR OLD CODE THIS IS OK
-    #Pnlinsign[K > maxkhrec] = 0
-    #Pnlinsign[K < minkhrec] = 0
-
-index_max = np.where(K<maxkhrec)[0][-1]
-index_min = np.where(K>minkhrec)[0][0]
-
-#Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
-#Plin_slice = Plin[index_min:index_max]
-#Pnlinsign = Pnlinsign[:, index_min:index_max]
-#K = K[index_min:index_max]
-
-#Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
-#Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
-
-#Pnlinsign_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
-#Pidentity_scipy2d = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
-
-#Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
-
-#min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
-#fill_value = 0.
-#Pnlinsign_scipy = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
-#Pidentity_scipy = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2d, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value = fill_value)
 
 est = es.Estimator(minkhrec, maxkhrec, K, mu, Ptot, Plin, Pnlinsign, b_tot, nhalo)
 
@@ -286,7 +259,10 @@ est.addF('phiphi', M(sp.sqrt(est.q1**2.+est.q2**2.+2*est.q1*est.q2*est.mu)) \
 
 
 #Which modes are reconstructed
-K_of_interest = np.arange(minkh, maxkh+0.001, 0.001)
+# K_of_interest = np.geomspace(minkh, maxkh, 50)
+K_of_interest = np.geomspace(minkh, maxkh, 2)
+# K_of_interest = np.arange(minkh, maxkh+0.001, 0.001)
+# K_of_interest = np.arange(minkh, maxkh, 0.01)
 mu_of_interest = np.linspace(-1, 1, len(K_of_interest))
 
 #Now calculate different noise curves and store them inside the object
@@ -298,6 +274,7 @@ est.generateNs(K_of_interest, mu_of_interest, minkhrec, maxkhrec, specific_combs
 # sh_tris = est.get_trispectrum_shot_noise('g', minkhrec, maxkhrec)
 # print('%g' % sh_tris)
 # print('Done new version')
+
 
 
 M = Mscipy(est.Krange)
@@ -323,19 +300,42 @@ for a, b in listKeys:
     dic['N'+b+a] = dic['N'+a+b]
     np.savetxt(direc+data_dir+'N'+a+b+'.txt',np.array((est.Krange,est.getN(a,b))).T)
 
+# Use presence of sh_bis and sh_tris as proxy for whether we're including
+# reconstructed modes or not
+new_bias = 0.
+if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
+    for k in est.keys:
+        new_bias += b10*est.getN('g', 'g')*est.getN('g', k)**-1.*est.c_a[k]
 
-new_bias = 1000 ##to be decided if I have to use sympy also here
+    import time
+    ###SJF
+    # K_for_shot = np.geomspace(minkh, maxkh, 10)
+    K_for_shot = np.geomspace(minkh, maxkh, 10)
+    print('K_for_shot:', K_for_shot)
+    s = time.time()
+    # sh_bis = est.get_bispectrum_shot_noise('g', K = est.Krange, minq = minkhrec, maxq = maxkhrec)
+    sh_bis = est.get_bispectrum_shot_noise('g', K = K_for_shot, minq = minkhrec, maxq = maxkhrec)
+    delta = time.time()-s
+    print(f'Total time for bispectrum shot noise: %g s' % delta)
 
-K_for_shot = np.arange(minkh, maxkh+0.1, 0.1)
-print('K_for_shot:', K_for_shot)
-sh_bis = est.get_bispectrum_shot_noise('g', K_for_shot, minkhrec, maxkhrec)
-import time
-s = time.time()
-sh_tris = est.get_trispectrum_shot_noise('g', K_for_shot, minkhrec, maxkhrec)
-delta = time.time()-s
-print(f'Total time for trispectrum {delta}')
-print('sh_bis:', sh_bis)
-print('sh_tris:', sh_tris)
+    s = time.time()
+    # sh_tris = est.get_trispectrum_shot_noise('g', K = est.Krange, minq = minkhrec, maxq = maxkhrec)
+    sh_tris = est.get_trispectrum_shot_noise('g', K = K_for_shot, minq = minkhrec, maxq = maxkhrec)
+    delta = time.time()-s
+    print(f'Total time for trispectrum shot noise: %g s' % delta)
+    print('sh_bis:', sh_bis)
+    print('sh_tris:', sh_tris)
+
+    ##SJF
+    # Interpolate bispectrum and trispectrum shot noise onto full K range
+    sh_bis_interp = scipy.interpolate.interp1d(K_for_shot, sh_bis[0])
+    sh_tris_interp = scipy.interpolate.interp1d(K_for_shot, sh_tris[0])
+    sh_bis = sh_bis_interp(K_of_interest)
+    sh_tris = sh_tris_interp(K_of_interest)
+    sh_bis = np.resize(sh_bis, (mu_of_interest.shape[0], sh_bis.shape[0]))
+    sh_tris = np.resize(sh_tris, (mu_of_interest.shape[0], sh_tris.shape[0]))
+
+
 '''
 #Now calculate shot noise contributions to the bispectrum
 Schematically speaking
@@ -343,43 +343,59 @@ int_q g_a*sum of terms
  g_a = N_a * f_a/(2*P*P)
 '''
 
-'''
 
-print('Getting bispectrum shot noise contribution')
 
-Ngg = est.getN('g', 'g')
+index_max = np.where(K<maxkhrec)[0][-1]
+index_min = np.where(K>minkhrec)[0][0]
 
-a = 'g'
-mu_sign = 1.
+Ptot = Ptot[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+Plin_slice = Plin[index_min:index_max]
+Pnlinsign = Pnlinsign[:, index_min:index_max]
+K = K[index_min:index_max]
 
-shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign,
-    minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
+Pnlinsign_scipy = scipy.interpolate.interp1d(K, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy = scipy.interpolate.interp1d(K, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
 
-sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)*shot
+Pnlinsign_scipy2dd = scipy.interpolate.interp2d(K, mu, Pnlinsign, fill_value = 0., bounds_error = False)
+Pidentity_scipy2dd = scipy.interpolate.interp2d(K, mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
 
-shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign,
-    minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+Ptot2d = scipy.interpolate.interp2d(K, mu, Ptot, fill_value = 0., bounds_error = False)
 
-sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
+min_x1, max_x1, min_x2, max_x2 = K.min(), K.max(), mu.min(), mu.max()
+fill_value = 0.
+Pnlinsign_scipy2d = lambda q, mu: es.vectorize_2dinterp(Pnlinsign_scipy2dd, q, mu, min_x1, max_x1, fill_value = fill_value)
+Pidentity_scipy2d = lambda q, mu: es.vectorize_2dinterp(Pidentity_scipy2dd, q, mu, min_x1, max_x1, fill_value = fill_value)
 
-sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3
-#This contribution goes to the cross spectrum between new field and original one
-
+# print('Getting bispectrum shot noise contribution')
+#
+# Ngg = est.getN('g', 'g')
+#
+# a = 'g'
+# mu_sign = 1.
+#
+# shotfactor_zeroPpower = est.integrate_for_shot('g', K_of_interest, mu_sign,
+#     minkhrec, maxkhrec, Pidentity_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
+# sh_bis_1 = (Ngg*shotfactor_zeroPpower)*shot**2.
+#
+# sh_bis_3 = (shotfactor_zeroPpower*Ngg)*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)*shot
+#
+# shotfactor_onePpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
+#
+# sh_bis_2 = (shotfactor_onePpower*Ngg)*shot
+#
+# sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3 #This contribution goes to the cross spectrum between new field and original one
+#
 # print('Getting trispectrum shot noise contribution')
 #
 # #Now calculate shot noise contributions to the trispectrum
 #
-# shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest,
-#     -mu_sign, minkhrec, maxkhrec, Pidentity_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
-# shotfactor_onePpower_opposite = est.integrate_for_shot('g', K_of_interest,
-#     -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, Pidentity_scipy, vegas_mode = vegas_mode)
+# shotfactor_zeroPpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pidentity_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
+# shotfactor_onePpower_opposite = est.integrate_for_shot('g', K_of_interest, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pidentity_scipy2d, vegas_mode = vegas_mode)
 #
-# shotfactor_twoPpower = est.integrate_for_shot('g', K_of_interest, mu_sign,
-#     minkhrec, maxkhrec, Pnlinsign_scipy, Pnlinsign_scipy, vegas_mode = vegas_mode)
+# shotfactor_twoPpower = est.integrate_for_shot('g', K_of_interest, mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, Pnlinsign_scipy2d, vegas_mode = vegas_mode)
 #
-# shotfactor_double = est.double_integrate_for_shot(a, K_of_interest, mu_sign,
-#     minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy, vegas_mode = vegas_mode)
+#
+# shotfactor_double = est.double_integrate_for_shot(a, K_of_interest, mu_sign, minkhrec, maxkhrec, -mu_sign, minkhrec, maxkhrec, Pnlinsign_scipy2d, vegas_mode = vegas_mode)
 #
 # sh_tris_1 = (shotfactor_zeroPpower*Ngg)**2.*shot**3
 #
@@ -393,8 +409,22 @@ sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3
 # sh_tris_4_b = shotfactor_zeroPpower**2*Ngg**2.*shot**2.*Pnlinsign_scipy2d(K_of_interest, mu_of_interest)
 #
 # sh_tris = sh_tris_1+4*sh_tris_2+4*sh_tris_3_a+2*sh_tris_3_b+2*sh_tris_4_a+sh_tris_4_b
-
-'''
+#
+#
+# print('sh_tris_1 n3', sh_tris_1)
+# print(sh_tris_2)
+# print(sh_tris_3_a)
+# print(sh_tris_3_b)
+# print(sh_tris_4_a)
+# print(sh_tris_4_b)
+# print(sh_tris)
+#
+#
+# print('')
+# print(est.trispectrum_shot)
+# print(sh_tris)
+#
+# print(est.trispectrum_shot[0, :]/est.getN('g', 'g'))
 
 
 for vv in variables_list:

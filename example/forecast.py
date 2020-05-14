@@ -177,16 +177,16 @@ forecast.add_cov_matrix(cov_dict, wedge_covariance_matrix_dict = fg_cov_dict)
 mu = 1
 var_values['mu'] = mu
 
-print(f'Plotting spectra. Using mu = {mu} for tracer autospectrum.')
-
-legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
-              'Pgg': {'color': 'red', 'ls': '-'},
-              # 'shot': {'color': 'blue', 'ls': '-'},
-              'Ngg': {'color': 'green', 'ls': '-'}}
-output_name_cov = 'test_cov'
-
-forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
-                  output_name = direc+pics_dir+output_name_cov+'.pdf')
+# print(f'Plotting spectra. Using mu = {mu} for tracer autospectrum.')
+#
+# legend_cov = {'Plin': {'color': 'black', 'ls': '-'},
+#               'Pgg': {'color': 'red', 'ls': '-'},
+#               # 'shot': {'color': 'blue', 'ls': '-'},
+#               'Ngg': {'color': 'green', 'ls': '-'}}
+# output_name_cov = 'test_cov'
+#
+# forecast.plot_cov(var_values, legend = legend_cov, title = 'Covariance elements',
+#                   output_name = direc+pics_dir+output_name_cov+'.pdf')
 
 for vv in variables_list:
     var_values[vv] = dic[vv]
@@ -230,9 +230,9 @@ np.savetxt(direc+data_dir+'sigma_fnl_unmarg_perk.dat',np.c_[kf,sig_fnl[0,:]*fnlS
 #for v in variables_of_interest:
 #    forecast.plot_forecast(v, error_versions, scipy_mode = False, kmin = K.min(), kmax = K.max(), volume = 100, xlabel = xlabel, ylabel = ylabel, xscale = xscale, yscale = yscale, output_name = direc+pics_dir+output_name+v+'g_only.png')
 
-print(forecast.get_error('bs2', marginalized = False, integrated = False,
-              kmin = K.min(), kmax = K.max(),
-              volume = values['survey_config']['geometry']['volume']))
+# print(forecast.get_error('bs2', marginalized = False, integrated = False,
+#               kmin = K.min(), kmax = K.max(),
+#               volume = values['survey_config']['geometry']['volume']))
 
 kf,sig_fnl = forecast.get_error('fnl', marginalized = False, integrated = True,
               kmin = K.min(), kmax = K.max(),
@@ -258,17 +258,17 @@ kf,sig_fnl = forecast.get_error('fnl', marginalized = True, integrated = True,
 np.savetxt(direc+data_dir+'sigma_fnl_marg_int.dat',np.c_[kf,sig_fnl*fnlScaling])
 # print(np.c_[kf,sig_fnl*fnlScaling])
 
-error_versions = {
-    'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
-    'Non-marg, integrated': {'marginalized': False, 'integrated': True},
-    'Marg, integrated': {'marginalized': True, 'integrated': True}
-}
-forecast.plot_forecast('fnl', error_versions,
-                        kmin = K.min(), kmax = K.max(),
-                        volume = values['survey_config']['geometry']['volume'],
-                        xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
-                        output_name = direc+pics_dir+output_name+'test_forecast.pdf',
-                        rescale_y = fnlScaling)
+# error_versions = {
+#     'Non-marg, non-integrated': {'marginalized': False, 'integrated': False},
+#     'Non-marg, integrated': {'marginalized': False, 'integrated': True},
+#     'Marg, integrated': {'marginalized': True, 'integrated': True}
+# }
+# forecast.plot_forecast('fnl', error_versions,
+#                         kmin = K.min(), kmax = K.max(),
+#                         volume = values['survey_config']['geometry']['volume'],
+#                         xlabel = r'$k_{\rm min}\; [h\, {\rm Mpc}^{-1}]$',
+#                         output_name = direc+pics_dir+output_name+'test_forecast.pdf',
+#                         rescale_y = fnlScaling)
 
 
 # b2_bs2_frac_prior_list = [0.2, 0.1, 0.05, 0.01]

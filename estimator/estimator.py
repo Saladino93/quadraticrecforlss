@@ -33,7 +33,9 @@ def vectorize_2dinterp(function, x1, x2, min_x1, max_x1, fill_value):
 
     #E = A*B#*C*D
     mask = A*B
-    mask[~mask] = fill_value
+    o = mask.astype(float)
+    o[~mask] = fill_value
+    mask = o
     #mask = np.ones(x1.shape)
     #mask[~E] = fill_value
 
@@ -55,7 +57,9 @@ def vectorize_2dinterp_bivariate(ev, x1, x2, min_x1, max_x1, fill_value):
     E = A*B
     mask = E
 
-    mask[~mask] = fill_value
+    o = mask.astype(float)
+    o[~mask] = fill_value
+    mask = o
 
     temp = ev(x2, x1) #NOTE IS SWAPPED HERE!
 
@@ -92,16 +96,6 @@ class Estimator(object):
                                      bounds_error = False)
         self.Pnlinsign_scipy2d = Pnlinsign_scipy2d
 
-        index_max = np.where(tot_k<maxkhrec)[0][-1]
-        index_min = np.where(tot_k>minkhrec)[0][0]
-
-        #slice so that scipy interp takes care of filling np.inf
-        tot_power = tot_power[:, index_min:index_max]
-        Plin = Plin[index_min:index_max]
-        Pnlinsign = Pnlinsign[:, index_min:index_max]
-        tot_k = tot_k[index_min:index_max]
-        bias = bias[:, index_min:index_max]
-
         Plinsign_times_bias = (bias)*Plin
 
         Plinsign_times_bias_oned = (bias[0, :])*Plin #ASSUMES NO MU DEPENDENCE, useful for tris shot noise bispec part, faster
@@ -111,50 +105,6 @@ class Estimator(object):
             return si.splev(k, tck)
 
         self.Plinsign_times_bias_scipy_oned = Pxbias
-
-
-        #This is for the Numerator
-        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)
-
-        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
-
-        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
-        fill_value = np.inf
-        #self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
-
-        def give_function(P2d, fill_value):
-            def give_P(q, mu):
-                return vectorize_2dinterp(P2d, q, mu, min_x1, max_x1, fill_value)
-            return give_P
-
-        def give_function_bivariate(P2dev, fill_value):
-            def give_P(q, mu):
-                return vectorize_2dinterp_bivariate(P2dev, q, mu, min_x1, max_x1, fill_value)
-            return give_P
-
-
-        self.P = give_function(Ptot2_interp, fill_value)
-
-        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
-        Pidentity_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
-        Plinsign_times_bias_scipy2d = interp2d(tot_k, tot_mu, Plinsign_times_bias, fill_value = 0., bounds_error = False)
-
-        fill_value = 0.
-
-        self.Pnlinsign_scipy = give_function(Pnlinsign_scipy2d, fill_value)
-
-        self.Pidentity_scipy = give_function(Pidentity_scipy2d, fill_value)
-
-        self.Plinsign_times_bias_scipy_2 = give_function(Plinsign_times_bias_scipy2d, fill_value)
-
-        '''
-        ev = si.RectBivariateSpline(tot_mu, tot_k, tot_power).ev
-        self.P = give_function_bivariate(ev, fill_value = np.inf)
-        ev = si.RectBivariateSpline(tot_mu, tot_k, Pnlinsign).ev
-        self.Pnlinsign_scipy = give_function_bivariate(ev, fill_value = 0.)
-        ev = si.RectBivariateSpline(tot_mu, tot_k, Pnlinsign*0.+1.).ev
-        self.Pidentity_scipy = give_function_bivariate(ev, fill_value = 0.)
-        '''
 
         ev = si.RectBivariateSpline(tot_mu, tot_k, Plinsign_times_bias).ev
 
@@ -182,9 +132,54 @@ class Estimator(object):
 
         self.Plinsign_times_bias_scipy = func
 
+        fill_value = 0.
 
-        bias2d = interp2d(tot_k, tot_mu, bias, fill_value = 0., bounds_error = False)
-        self.bias = give_function(bias2d, fill_value)
+        #bias2d = interp2d(tot_k, tot_mu, bias, fill_value = 0., bounds_error = False)
+        #self.bias = give_function(bias2d, fill_value)
+
+
+        index_max = np.where(tot_k<maxkhrec)[0][-1]
+        index_min = np.where(tot_k>minkhrec)[0][0]
+
+        tot_power = tot_power[:, index_min:index_max] #slice so that scipy interp takes care of filling np.inf
+        Plin = Plin[index_min:index_max]
+        Pnlinsign = Pnlinsign[:, index_min:index_max]
+        tot_k = tot_k[index_min:index_max]
+        bias = bias[:, index_min:index_max]
+
+
+
+        self.thP = interp1d(tot_k, Plin, fill_value = 0., bounds_error = False)#This is for the Numerator
+
+        min_x1, max_x1, min_x2, max_x2 = tot_k.min(), tot_k.max(), tot_mu.min(), tot_mu.max()
+
+        def give_function(P2d, fill_value):
+            def give_P(q, mu):
+                return vectorize_2dinterp(P2d, q, mu, min_x1, max_x1, fill_value)
+            return give_P
+
+        def give_function_bivariate(P2dev, fill_value):
+            def give_P(q, mu):
+                return vectorize_2dinterp_bivariate(P2dev, q, mu, min_x1, max_x1, fill_value)
+            return give_P
+
+
+        Ptot2_interp = interp2d(tot_k, tot_mu, tot_power, kind = 'cubic', fill_value = np.inf) #Goes into the Denominator of the Filter
+        fill_value = np.inf
+        #self.P = lambda q, mu: vectorize_2dinterp(Ptot2_interp, q, mu, min_x1, max_x1, min_x2, max_x2, fill_value)
+        self.P = give_function(Ptot2_interp, fill_value)
+
+        Pnlinsign_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign, fill_value = 0., bounds_error = False)
+        Pidentity_scipy2d = interp2d(tot_k, tot_mu, Pnlinsign*0.+1., fill_value = 0., bounds_error = False)
+        #Plinsign_times_bias_scipy2d = interp2d(tot_k, tot_mu, Plinsign_times_bias, fill_value = 0., bounds_error = False)
+
+        fill_value = 0.
+
+        self.Pnlinsign_scipy = give_function(Pnlinsign_scipy2d, fill_value)
+
+        self.Pidentity_scipy = give_function(Pidentity_scipy2d, fill_value)
+
+        #self.Plinsign_times_bias_scipy_2 = give_function(Plinsign_times_bias_scipy2d, fill_value)
 
         self.nhalo = nhalo
 
@@ -326,6 +321,9 @@ class Estimator(object):
         result: float
             Value of f.
         """
+        #if mu_sign = -1, mu should be already corrected for it outside
+        #use f general, it is better and more bullet proof
+        #Note if K --> -K, expressions should be the same, as it is accounted in mu sign change and kernel is ok for this
         modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
 
         mu_p = K**2.-q*K*mu
@@ -587,12 +585,12 @@ class Estimator(object):
            mu = x[:, 0]*mu_sign
            q = x[:, 1]
 
-           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu)
+           modK_q = np.sqrt(K**2.+q**2.-2*K*q*mu) #if mu_sign negative here it is like a sum
 
-           result = 2*np.pi*q**2./(2*np.pi)**3.
+           result = 2*np.pi*q**2./(2*np.pi)**3. #2pi is the integration over angle on plane perpendicular to K already done
 
-           mu_p = K**2.-q*K*mu
-           mu_p /= (K*modK_q)
+           mu_p = K**2.-q*K*mu #if mu_sign negative here it is like a sum
+           mu_p /= (K*modK_q)*mu_sign #that that mu_p is sign of -K-q relative to K
 
            result *= f(a, q, K, mu)*function1(q, mu)*function2(modK_q, mu_p)
            result /= (2*self.P(q, mu)*self.P(modK_q, mu_p))
@@ -794,7 +792,7 @@ class Estimator(object):
             nitn = 100
             neval = 1000
 
-            if version2:
+            if version2:#newer version
                 integrand = self._double_outer_integral_vegas_for_g2(function = function, K = K, subtract_qtot = subtract_qtot, a = a)
             else:
                 integrand = self._double_outer_integral_vegas_for_g(function, self.f, K, subtract_qtot, mu_sign, mu_sign_prime, a)
@@ -906,7 +904,7 @@ class Estimator(object):
            #calc B(-(q+q'), q, q')
            Bg_2 = self._get_tot_bispectrum_signal(a[0], b[0], c[0], np.cos(a[2]), np.cos(b[2]), np.cos(c[2]), muab, muac, mubc)
 
-           #calc B(-K, q, K-q)
+           # calc B(-K, q, K-q)
 
            a = triple_minus_K
            b = triple_q
@@ -918,7 +916,6 @@ class Estimator(object):
 
            #calc B(-K, q, K-q)
            Bg_3 = self._get_tot_bispectrum_signal(a[0], b[0], c[0], np.cos(a[2]), np.cos(b[2]), np.cos(c[2]), muab, muac, mubc)
-
 
            B_g = Bg_1+4*Bg_2+Bg_3 #Bg_2 is for 4 times s several terms are identical by substituion and symmetry
 
@@ -941,17 +938,22 @@ class Estimator(object):
 
 
 
-    def get_bispectrum_shot_noise(self, a, k_for_shot, minq, maxq, vegas_mode = True, verbose = True):
+    def get_bispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
 
         if minq is None:
             minq = self.min_k_rec
         if maxq is None:
             maxq = self.max_k_rec
+        if K is None:
+            K = self.Krange
+            murange = self.murange
+        else:
+            murange = np.linspace(-1, 1, len(K))
 
         if verbose:
             print(f'Calculating shot noise of cross correlation with input field for {a} estimator.')
 
-        self.bispectrum_shot = self._get_bis_shot_noise(a, k_for_shot, self.murange, minq, maxq, vegas_mode = vegas_mode)
+        self.bispectrum_shot = self._get_bis_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
 
         return self.bispectrum_shot
 
@@ -961,7 +963,7 @@ class Estimator(object):
         function2 is calculated at \vec{K}-\vec{q}
         '''
 
-        Naa = self.getN(a, a)
+        Naa = self.getN(a, a, K)
 
         shot = 1/self.nhalo
 
@@ -985,6 +987,9 @@ class Estimator(object):
         sh_bis_2 = (shotfactor_onePpower*Naa)*shot
 
         sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3
+        print('nbar^-2 term',sh_bis_1)
+        print('pq term',2*sh_bis_2)
+        print('pk term',sh_bis_3)
 
         return sh_bis
 
@@ -1112,8 +1117,7 @@ class Estimator(object):
         return mu_between
 
 
-
-    def get_trispectrum_shot_noise(self, a, k_for_shot, minq = None, maxq = None, vegas_mode = True, verbose = True):
+    def get_trispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
         if verbose:
             print(f'Calculating shot noise of autocorrelation of reconstruced field for {a} estimator.')
 
@@ -1124,7 +1128,17 @@ class Estimator(object):
         self.Ftot = Ftot
         self.Ftot_func = sp.lambdify([self.q1, self.q2, self.mu], Ftot, 'numpy')
 
-        self.trispectrum_shot = self._get_tris_shot_noise(a, k_for_shot, self.murange, minq, maxq, vegas_mode = vegas_mode)
+        if minq is None:
+            minq = self.min_k_rec
+        if maxq is None:
+            maxq = self.max_k_rec
+        if K is None:
+            K = self.Krange
+            murange = self.murange
+        else:
+            murange = np.linspace(-1, 1, len(K))
+
+        self.trispectrum_shot = self._get_tris_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
 
         return self.trispectrum_shot
 
@@ -1132,9 +1146,9 @@ class Estimator(object):
 
     def _get_tris_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
 
-        Naa = self.getN(a, a)
+        Naa = self.getN(a, a, K)
 
-        shot = self.nhalo
+        shot = 1/self.nhalo
 
         #function1 is function of just q
         #function2 is function of K-q
@@ -1179,11 +1193,7 @@ class Estimator(object):
 
         A = (A1+A2+A3+A4)
 
-        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q)
-        #THIS TERM WITH DELTA OF DIRAC SHOULD BE ZERO FOR K \neq 0
-
-        B00 = 0.
-        B0 = 0.
+        ############
 
         # P(K) * int g_a(q, K-q) * int g_a(q, -K-q)
         B11 = self.Pnlinsign_scipy2d(K, mus)
@@ -1191,33 +1201,21 @@ class Estimator(object):
         B13 = A12 #int g_a(q, -K-q)
         B1 = B11*B12*B13*Naa**2.
 
-        # int g_a(q, K-q) g_a(-q,-(K-q))
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        B21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
-        B2 = B21*Naa**2. #NOTE B21**2.?
 
-        # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
+        # int g_a(q, K-q) g_a(q', -K-q') P(q-K-q')
+        #
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
         B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode)
         B3 = B31*Naa**2.
-
-        B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
-
-
-
-        # int g_a(q, K-q) g_a(-q,-(K-q))
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        B41 = B21
-        B4 = B41*Naa*2.
+        #B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
+        #print(np.max(np.abs(B31-B311)/B311))
 
         # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
         B51 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = False, vegas_mode = vegas_mode)
         B5 = B51*Naa**2.
 
-        B = (B0+B1+B2+B3+B4+B5) #NOTE B0=0 as it is delta of dirac at K
+        B = (B1+B3+B5) #NOTE B0=0 as it is delta of dirac at K
 
         n2_term = (A+B)*shot**2.
 
@@ -1229,57 +1227,19 @@ class Estimator(object):
         # MODE IS q+K-q=K
         D = A22
 
-        n3_term = (C+D)*shot**3
-
-        #delta_D(K) * int g_a(q, K-q) * int g_a(q, -K-q) *P(q)
-        #this is zero
-
-        E11 = 0.
-        E1 = E11
-
-
-        #function1 is function of just q
-        #function2 is function of K-q
-
-        # int g_a(q, K-q) g_a(-q,-(K-q)) P(K-q)
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        E21 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode, extra_g = True)
-        E2 = E21*Naa**2.
-
-        # int g_a(q, K-q) g_a(-(K-q),-q) P(K-q)
-        # ASSUME g_a symmetric in arguments g_a(k1,k2)=g_a(k2,k1)
-        # ASSUME g_a(k1, k2) = g_a(-k1, -k2)
-        E31 = E21
-        E3 = E31*Naa**2.
-
-
-        #delta_D(-K) * int g_a(q, K-q) * P(q) * int g_a(q, -K-q)
-        #this is zero
-
-        E41 = 0.
-        E4 = E41
-
-        #int g_a(q, K-q) P(q) g_a(-q, -(K-q))
-        #Note again, here we have assumed g_a(-q, -(K-q))=g_a(q, K-q)
-        E51 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = True)
-        E5 = E51*Naa**2.
-
-        #int g_a(q, K-q) P(q) g_a(-(K-q), -q)
-        #Note again, here we have assumed g_a(-(K-q), -q)=g_a(q, K-q)
-        E61 = E51
-        E6 = E51*Naa**2.
-
-        E = E1+E2+E3+E4+E5+E6
+        n3_term = (C*D*Naa**2.)*shot**3
 
         #Then you also have Bispectrum terms
 
         F = self.double_integrate_bispectrum_for_shot(a, K, minq, maxq, minq, maxq, vegas_mode = vegas_mode)
         F *= Naa**2.
-
-        n1_term = (E+F)*shot
+        n1_term = (F)*shot
 
         result = n1_term+n2_term+n3_term
+
+        #print(n1_term)
+        #print(n2_term)
+        #print(n3_term)
 
         return result
 
@@ -1369,6 +1329,7 @@ class Estimator(object):
             print('Key combs to calculate is, ', listKeys)
 
         retList = {}
+        retList_interpolated = {}
 
         for key1, key2 in listKeys:
             retList[key1+","+key2] = []
@@ -1379,18 +1340,22 @@ class Estimator(object):
             N = self.N(a, b, K, minq, maxq, vegas_mode)
             retList[a+","+b]= N#.append(N)
             #if I do not vectorize generateNs I could assign retList the whole N, without append
+            Ninterp = si.interp1d(K, N)
+            retList_interpolated[a+","+b] = Ninterp
+            retList_interpolated[b+","+a] = retList_interpolated[a+","+b]
 
-        for a, b in listKeys:
-            retList[b+","+a] = np.array(retList[a+","+b])
+        #for a, b in listKeys:
+        #    retList[b+","+a] = np.array(retList[a+","+b])
 
         self.Nmatrix = retList
+        self.Nmatrix_interpolated = retList_interpolated
         self.Krange = K
         self.murange = mu
 
         return None
 
     @vectorize
-    def getN(self, a, b, K = None):
+    def getN(self, a, b, K = None, interpolated = True):
         """Retrieve N_{ab} that has already been computed.
 
         Parameters
@@ -1410,11 +1375,15 @@ class Estimator(object):
         """
         if K is None:
             K = self.Krange
-        Kindex = np.where(self.Krange == K)[0]#[0]
         try:
-            return self.Nmatrix[a+","+b][Kindex]
-        except KeyError:
-            return self.Nmatrix[b+","+a][Kindex]
+            if interpolated:
+                result = self.Nmatrix_interpolated[a+","+b](K)
+            else:
+                Kindex = np.where(self.Krange == K)[0]
+                result = self.Nmatrix[a+","+b][Kindex]
+            return result
+        #except KeyError:
+        #    return self.Nmatrix[b+","+a][Kindex] #N is symm, so it is useless, but I leave for completeness
         except:
             print("Key combination not found")
             raise

@@ -514,9 +514,13 @@ class Forecaster(expression):
             print('List for combinations', lista)
 
         if integrated:
-            # Make array of k_min values to consider
+            # Make array of k_min values to consider. Because of the way
+            # the K_min on delta_g is implemented in getIntegratedFisher,
+            # Ks cannot be more finely-spaced than K, so let's just use Ks=K
             if Ks is None:
-                Ks = np.arange(kmin, kmax-0.005, 0.001)
+                Ks = K
+                # Ks = np.arange(kmin, kmax-0.005, 0.001)
+                # Ks = np.geomspace(kmin, kmax-0.001, 50)
 
             #note: also case where Ks changes
             if self.fisher_integrated is None or recalculate:
@@ -853,7 +857,7 @@ class Forecaster(expression):
     def plot_forecast(self, variable, error_versions, scipy_mode = True, kmin = 0.005, kmax = 0.05,
                      volume = 100, title = 'Error', xlabel = '$K$ $(h Mpc^{-1})$',
                      ylabel = '$\sigma$', xscale = 'linear', yscale = 'log', output_name = '',
-                     style = 'default'):
+                     style = 'default', rescale_y=1):
 
         plt.style.use(style)
         fig, ax = plt.subplots(nrows = 1, ncols = 1)
