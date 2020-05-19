@@ -987,9 +987,9 @@ class Estimator(object):
         sh_bis_2 = (shotfactor_onePpower*Naa)*shot
 
         sh_bis = sh_bis_1+2*sh_bis_2+sh_bis_3
-        print('nbar^-2 term',sh_bis_1)
-        print('pq term',2*sh_bis_2)
-        print('pk term',sh_bis_3)
+        # print('nbar^-2 term',sh_bis_1)
+        # print('pq term',2*sh_bis_2)
+        # print('pk term',sh_bis_3)
 
         return sh_bis
 
