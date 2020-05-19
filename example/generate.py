@@ -210,7 +210,7 @@ times the NON linear power spectrum plus the shot noise contribution of the trac
 shot = 1/nhalo
 
 # mu = np.linspace(-1, 1, len(K))
-mu = np.linspace(-1, 1, 100)
+mu = np.linspace(-1, 1, 10)
 
 M_K = Mscipy(K)
 inv_M_mesh, mu_mesh = np.meshgrid(1/M_K, mu)
