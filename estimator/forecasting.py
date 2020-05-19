@@ -597,7 +597,12 @@ class Forecaster(expression):
                     cov_int_marg = f_int.copy()
                     for i in range(f_int.shape[-1]):
                         matrix = f_int[:, :, i]
-                        cov_int_marg[:, :, i] = np.linalg.inv(matrix)
+                        try:
+                            cov_int_marg[:, :, i] = np.linalg.inv(matrix)
+                        except np.linalg.LinAlgError:
+                            print('Covariance inversion error! K = %g' % Ks[i])
+                            print('Setting F_inv to zero')
+                            cov_int_marg[:, :, i] = np.zeros_like(matrix)
                         error_inversion1 = np.max(abs(cov_int_marg[:, :, i]@matrix-np.eye(N)))
                         error_inversion2 = np.max(abs(matrix@cov_int_marg[:, :, i]-np.eye(N)))
                         # or can just check if m*minv = minv*m within some error
