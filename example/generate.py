@@ -87,6 +87,21 @@ Klin = Klin[select]
 Plin = Plin[select]
 Pnlin = Pnlin[select]
 
+# If a mu_limit is specified, grab it
+mu_limit = None
+if 'fisher_mu_limit' in values['forecast_config'].keys():
+    mu_limit = values['forecast_config']['fisher_mu_limit']
+    print('Fisher mu limit found: %g' % mu_limit)
+
+# If file containing N_ab scaling fractions (as an effective way of
+# accounting for a foreground wedge) is specified, import it and create
+# an interpolating function in k.
+Nab_wedge_fraction = None
+if 'Nab_wedge_scaling_fractions' in values['forecast_config'].keys():
+    print('Scaling N_ab curves to account for lost modes due to foreground wedge')
+    Nab_wedge_frac_data = np.loadtxt(values['forecast_config']['Nab_wedge_scaling_fractions']).T
+    Nab_wedge_fraction = scipy.interpolate.interp1d(Nab_wedge_frac_data[0], Nab_wedge_frac_data[1])
+
 
 #################################
 # Set some parameter values
@@ -312,7 +327,9 @@ if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
     print('K_for_shot:', K_for_shot)
     s = time.time()
     # sh_bis = est.get_bispectrum_shot_noise('g', K = est.Krange, minq = minkhrec, maxq = maxkhrec)
-    sh_bis = est.get_bispectrum_shot_noise('g', K = K_for_shot, minq = minkhrec, maxq = maxkhrec)
+    sh_bis = est.get_bispectrum_shot_noise('g', K = K_for_shot, minq = minkhrec, maxq = maxkhrec,
+                                           mu_limit = mu_limit,
+                                           Nab_wedge_fraction = Nab_wedge_fraction)
     delta = time.time()-s
     print(f'Total time for bispectrum shot noise: %g s' % delta)
 

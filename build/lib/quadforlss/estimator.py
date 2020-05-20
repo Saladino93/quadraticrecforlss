@@ -765,7 +765,7 @@ class Estimator(object):
 
     @vectorize
     def integrate_for_shot(self, a, K, mu_sign, minq, maxq, function1, function2,
-                            vegas_mode = False, extra_g = False):
+                            vegas_mode = False, extra_g = False, mu_limit = None):
 
         if vegas_mode:
 
@@ -774,10 +774,16 @@ class Estimator(object):
 
             function = self._outer_integral_vegas_for_g(function1, function2, self.f,
                                                         K, mu_sign, a, extra_g)
-
-            integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 1000)
-            result = integ(function, nitn = nitn, neval = neval)
-            integral = result.mean
+            if mu_limit is None:
+                integ = vegas.Integrator([[-1, 1], [minq, maxq]], nhcube_batch = 1000)
+                result = integ(function, nitn = nitn, neval = neval)
+                integral = result.mean
+            else:
+                integ1 = vegas.Integrator([[-1, -1*mu_limit], [minq, maxq]], nhcube_batch = 1000)
+                integ2 = vegas.Integrator([[mu_limit, 1], [minq, maxq]], nhcube_batch = 1000)
+                result1 = integ1(function, nitn = nitn, neval = neval)
+                result2 = integ2(function, nitn = nitn, neval = neval)
+                integral = result1.mean + result2.mean
 
         return integral
 
@@ -938,7 +944,9 @@ class Estimator(object):
 
 
 
-    def get_bispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
+    def get_bispectrum_shot_noise(self, a, K = None, minq = None, maxq = None,
+                                  vegas_mode = True, verbose = True,
+                                  mu_limit = None, Nab_wedge_fraction = None):
 
         if minq is None:
             minq = self.min_k_rec
@@ -953,24 +961,30 @@ class Estimator(object):
         if verbose:
             print(f'Calculating shot noise of cross correlation with input field for {a} estimator.')
 
-        self.bispectrum_shot = self._get_bis_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
+        self.bispectrum_shot = self._get_bis_shot_noise(a, K, murange, minq, maxq,
+                                                vegas_mode = vegas_mode, mu_limit=mu_limit,
+                                                Nab_wedge_fraction = Nab_wedge_fraction)
 
         return self.bispectrum_shot
 
-    def _get_bis_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
+    def _get_bis_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True,
+                            mu_limit = None, Nab_wedge_fraction = None):
         '''
         function1 is calculated at q
         function2 is calculated at \vec{K}-\vec{q}
         '''
 
         Naa = self.getN(a, a, K)
+        if Nab_wedge_fraction is not None:
+            Naa /= Nab_wedge_fraction(K)
 
         shot = 1/self.nhalo
 
         #int g_a(q, K-q) * 1/n**2
         shotfactor_zeroPpower = self.integrate_for_shot(a, K, mu_sign = 1,
             minq = minq, maxq = maxq, function1 = self.Pidentity_scipy,
-            function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False)
+            function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False,
+            mu_limit = mu_limit)
         sh_bis_1 = (Naa*shotfactor_zeroPpower)*shot**2.
 
         #int g_a(q, K-q) * 1/n * P(K)
@@ -978,7 +992,8 @@ class Estimator(object):
 
         shotfactor_onePpower = self.integrate_for_shot(a, K, mu_sign = 1,
             minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy,
-            function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False)
+            function2 = self.Pidentity_scipy, vegas_mode = vegas_mode, extra_g = False,
+            mu_limit = mu_limit)
 
         #This one here gives:
         #int g_a(q, K-q)P(q) and
