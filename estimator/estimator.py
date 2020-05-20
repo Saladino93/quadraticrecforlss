@@ -975,6 +975,7 @@ class Estimator(object):
         '''
 
         Naa = self.getN(a, a, K)
+        ###SJF
         # if Nab_wedge_fraction is not None:
         #     Naa /= Nab_wedge_fraction(K)
 

@@ -98,7 +98,7 @@ if 'fisher_mu_limit' in values['forecast_config'].keys():
 # an interpolating function in k.
 Nab_wedge_fraction = None
 if 'Nab_wedge_scaling_fractions' in values['forecast_config'].keys():
-    print('Scaling N_ab curves to account for lost modes due to foreground wedge')
+    print('Wedge scaling fractions for N_ab curves found')
     Nab_wedge_frac_data = np.loadtxt(values['forecast_config']['Nab_wedge_scaling_fractions']).T
     Nab_wedge_fraction = scipy.interpolate.interp1d(Nab_wedge_frac_data[0], Nab_wedge_frac_data[1])
 
