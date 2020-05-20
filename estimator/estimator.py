@@ -975,8 +975,8 @@ class Estimator(object):
         '''
 
         Naa = self.getN(a, a, K)
-        if Nab_wedge_fraction is not None:
-            Naa /= Nab_wedge_fraction(K)
+        # if Nab_wedge_fraction is not None:
+        #     Naa /= Nab_wedge_fraction(K)
 
         shot = 1/self.nhalo
 

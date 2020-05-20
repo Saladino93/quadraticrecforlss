@@ -332,6 +332,7 @@ if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
                                            Nab_wedge_fraction = Nab_wedge_fraction)
     delta = time.time()-s
     print(f'Total time for bispectrum shot noise: %g s' % delta)
+    print(sh_bis[0])
 
     s = time.time()
     # sh_tris = est.get_trispectrum_shot_noise('g', K = est.Krange, minq = minkhrec, maxq = maxkhrec)
