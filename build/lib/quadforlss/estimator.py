@@ -791,7 +791,7 @@ class Estimator(object):
     @vectorize
     def double_integrate_for_shot(self, a, K, mu_sign, minq, maxq, mu_sign_prime,
                                   minq_prime, maxq_prime, function, subtract_qtot = True,
-                                  vegas_mode = False, version2 = False):
+                                  vegas_mode = False, version2 = False, mu_limit = None):
 
         if vegas_mode:
 
@@ -802,9 +802,21 @@ class Estimator(object):
                 integrand = self._double_outer_integral_vegas_for_g2(function = function, K = K, subtract_qtot = subtract_qtot, a = a)
             else:
                 integrand = self._double_outer_integral_vegas_for_g(function, self.f, K, subtract_qtot, mu_sign, mu_sign_prime, a)
-            integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
-            result = integ(integrand, nitn = nitn, neval = neval)
-            integral = result.mean
+
+            if mu_limit is None:
+                integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+                result = integ(integrand, nitn = nitn, neval = neval)
+                integral = result.mean
+            else:
+                integ1 = vegas.Integrator([[0, np.arccos(-1*mu_limit)], [0, np.arccos(-1*mu_limit)], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+                integ2 = vegas.Integrator([[0, np.arccos(-1*mu_limit)], [np.arccos(mu_limit), np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+                integ3 = vegas.Integrator([[np.arccos(mu_limit), np.pi], [0, np.arccos(-1*mu_limit)], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+                integ4 = vegas.Integrator([[np.arccos(mu_limit), np.pi], [np.arccos(mu_limit), np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 1000)
+                result1 = integ(integrand1, nitn = nitn, neval = neval)
+                result2 = integ(integrand2, nitn = nitn, neval = neval)
+                result3 = integ(integrand3, nitn = nitn, neval = neval)
+                result4 = integ(integrand4, nitn = nitn, neval = neval)
+                integral = result1.mean + result2.mean + result3.mean + result4.mean
 
         else:
             raise NotImplemented
@@ -813,7 +825,9 @@ class Estimator(object):
 
 
     @vectorize
-    def double_integrate_bispectrum_for_shot(self, a, K, minq, maxq, minq_prime, maxq_prime, vegas_mode = False):
+    def double_integrate_bispectrum_for_shot(self, a, K, minq, maxq, minq_prime,
+                                             maxq_prime, vegas_mode = False,
+                                             mu_limit = None):
 
         if vegas_mode:
 
@@ -821,9 +835,20 @@ class Estimator(object):
             neval = 1000
 
             function = self._double_outer_integrand_bispectrum_for_shot(K, a)
-            integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
-            result = integ(function, nitn = nitn, neval = neval)
-            integral = result.mean
+            if mu_limit is None:
+                integ = vegas.Integrator([[0, np.pi], [0, np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
+                result = integ(function, nitn = nitn, neval = neval)
+                integral = result.mean
+            else:
+                integ1 = vegas.Integrator([[0, np.arccos(-1*mu_limit)], [0, np.arccos(-1*mu_limit)], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
+                integ2 = vegas.Integrator([[0, np.arccos(-1*mu_limit)], [np.arccos(mu_limit), np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
+                integ3 = vegas.Integrator([[np.arccos(mu_limit), np.pi], [0, np.arccos(-1*mu_limit)], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
+                integ4 = vegas.Integrator([[np.arccos(mu_limit), np.pi], [np.arccos(mu_limit), np.pi], [0, 2*np.pi], [0, 2*np.pi], [minq, maxq], [minq, maxq]], nhcube_batch = 2000)
+                result1 = integ(integrand1, nitn = nitn, neval = neval)
+                result2 = integ(integrand2, nitn = nitn, neval = neval)
+                result3 = integ(integrand3, nitn = nitn, neval = neval)
+                result4 = integ(integrand4, nitn = nitn, neval = neval)
+                integral = result1.mean + result2.mean + result3.mean + result4.mean
 
         else:
             raise NotImplemented
@@ -1132,7 +1157,9 @@ class Estimator(object):
         return mu_between
 
 
-    def get_trispectrum_shot_noise(self, a, K = None, minq = None, maxq = None, vegas_mode = True, verbose = True):
+    def get_trispectrum_shot_noise(self, a, K = None, minq = None, maxq = None,
+                                vegas_mode = True, verbose = True,
+                                mu_limit = None, Nab_wedge_fraction = None):
         if verbose:
             print(f'Calculating shot noise of autocorrelation of reconstruced field for {a} estimator.')
 
@@ -1153,15 +1180,20 @@ class Estimator(object):
         else:
             murange = np.linspace(-1, 1, len(K))
 
-        self.trispectrum_shot = self._get_tris_shot_noise(a, K, murange, minq, maxq, vegas_mode = vegas_mode)
+        self.trispectrum_shot = self._get_tris_shot_noise(a, K, murange, minq, maxq,
+                                    vegas_mode = vegas_mode, mu_limit = mu_limit,
+                                    Nab_wedge_fraction = Nab_wedge_fraction)
 
         return self.trispectrum_shot
 
 
 
-    def _get_tris_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True):
+    def _get_tris_shot_noise(self, a, K, mus, minq, maxq, vegas_mode = True,
+                            mu_limit = None, Nab_wedge_fraction = None):
 
         Naa = self.getN(a, a, K)
+        if Nab_wedge_fraction is not None:
+            Naa /= Nab_wedge_fraction(K)
 
         shot = 1/self.nhalo
 
@@ -1170,26 +1202,36 @@ class Estimator(object):
 
         # int g_a(q, K-q)P(q)
         # mode is q+K-q=K
-        A11 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+        A11 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq,
+                function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         # int g_a(q, -K-q)
         # mode is q-K-q=-K
-        A12 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+        A12 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq,
+                function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         A1 = A11*A12*Naa**2. #Naa**p, a power of one for each g_a
 
         # int g_a(q, -K-q)P(q)
         # mode is q-K-q=-K
-        A21 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+        A21 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq,
+                function1 = self.Pnlinsign_scipy, function2 = self.Pidentity_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         # int g_a(q, K-q)
         # mode is q+K-q=K
-        A22 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy, vegas_mode = vegas_mode)
+        A22 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq,
+                function1 = self.Pidentity_scipy, function2 = self.Pidentity_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         A2 = A21*A22*Naa**2. #Naa**p, a power of one for each g_a
 
         # int g_a(q, K-q)P(K-q)
-        A31 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode)
+        A31 = self.integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq,
+                function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         # int g_a(q, -K-q)
         # mode is q-K-q=-K
@@ -1199,7 +1241,9 @@ class Estimator(object):
 
         # int g_a(q, -K-q)P(-K-q)
         # mode is q-K-q=-K
-        A41 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq, function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy, vegas_mode = vegas_mode)
+        A41 = self.integrate_for_shot(a, K, mu_sign = -1, minq = minq, maxq = maxq,
+                function1 = self.Pidentity_scipy, function2 = self.Pnlinsign_scipy,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
 
         # int g_a(q, K-q)
         A42 = A22
@@ -1220,14 +1264,20 @@ class Estimator(object):
         # int g_a(q, K-q) g_a(q', -K-q') P(q-K-q')
         #
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
-        B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode)
+        B31 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq,
+                mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq,
+                function = self.Pnlinsign_scipy, subtract_qtot = True,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
         B3 = B31*Naa**2.
         #B311 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = True, vegas_mode = vegas_mode, version2 = True)
         #print(np.max(np.abs(B31-B311)/B311))
 
         # int g_a(q, K-q) g_a(q', -K-q') P(q-K+q')
         # note for P isotropic P(q-K+q')=P(K-(q+q'))
-        B51 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq, mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq, function = self.Pnlinsign_scipy, subtract_qtot = False, vegas_mode = vegas_mode)
+        B51 = self.double_integrate_for_shot(a, K, mu_sign = 1, minq = minq, maxq = maxq,
+                mu_sign_prime = -1, minq_prime = minq, maxq_prime = maxq,
+                function = self.Pnlinsign_scipy, subtract_qtot = False,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
         B5 = B51*Naa**2.
 
         B = (B1+B3+B5) #NOTE B0=0 as it is delta of dirac at K
@@ -1246,15 +1296,12 @@ class Estimator(object):
 
         #Then you also have Bispectrum terms
 
-        F = self.double_integrate_bispectrum_for_shot(a, K, minq, maxq, minq, maxq, vegas_mode = vegas_mode)
+        F = self.double_integrate_bispectrum_for_shot(a, K, minq, maxq, minq, maxq,
+                vegas_mode = vegas_mode, mu_limit = mu_limit)
         F *= Naa**2.
         n1_term = (F)*shot
 
         result = n1_term+n2_term+n3_term
-
-        #print(n1_term)
-        #print(n2_term)
-        #print(n3_term)
 
         return result
 

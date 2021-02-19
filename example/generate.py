@@ -340,7 +340,7 @@ if 'sh_bis' in variables_list and 'sh_tris' in variables_list:
     delta = time.time()-s
     print(f'Total time for trispectrum shot noise: %g s' % delta)
     # print('sh_bis:', sh_bis)
-    # print('sh_tris:', sh_tris)
+    print(sh_tris[0])
 
     # Interpolate bispectrum and trispectrum shot noise onto full K range
     sh_bis_interp = scipy.interpolate.interp1d(K_for_shot, sh_bis[0])
