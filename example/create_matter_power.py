@@ -24,10 +24,19 @@ def getT(cosmology, redshift, vector):
 def getM(cosmology, redshift, vector):
     T = getT(cosmology, redshift, vector)
     Omega_m = cosmology.Omega0_m
-    H0 = cosmology.H0    
+    H0 = cosmology.H0
     lightvel = 3.*10**5.
+    pert = nbodykit.cosmology.background.MatterDominated(Omega_m)
     M = (2*lightvel**2./(3*H0**2.*Omega_m))*vector**2.*T
-    return M 
+
+    # The transfer function from nbodykit is multiplied by the linear
+    # growth factor normalized to unity at z=0, but M should have the
+    # growth factor normalized to 1/(1+z) during matter domination, so we
+    # re-normalized M with that definition of the growth factor
+    pert = nbodykit.cosmology.background.MatterDominated(Omega_m)
+    M *= (1/51.) / pert.D1(1/51.)
+
+    return M
 
 ## Simple constant that appears in M
 def get_alpha(cosmology):
@@ -48,12 +57,11 @@ if len(sys.argv) == 1:
 
 values_file = str(sys.argv[1])
 
+
 with open(values_file, 'r') as stream:
     data = yaml.safe_load(stream)
 
-values = data 
-
-print('Values are, ', values)
+values = data
 
 direc = values['name']
 base_dir = values['file_config']['base_dir']
@@ -67,16 +75,16 @@ if not os.path.exists(direc):
     os.makedirs(direc+data_dir)
     os.makedirs(direc+pics_dir)
 else:
-    print('Baseline name already exists!')
-    sys.exit()
+    print('Baseline name already exists! Regenerating anyway...')
+    # sys.exit()
 
 #min and max wave numbers for definition of ranges  and the number of points in between to sample from
 mink = float(values['data_creation_config']['mink'])
 maxk = float(values['data_creation_config']['maxk'])
-npoints = int(values['data_creation_config']['npoints']) 
+npoints = int(values['data_creation_config']['npoints'])
 
 #Redshift
-z = np.array([int(values['data_creation_config']['z'])])
+z = np.array([float(values['data_creation_config']['z'])])
 
 #Cosmology Used
 cosmology_used = values['data_creation_config']['cosmology']
@@ -94,11 +102,11 @@ print('Getting Power Spectra and Transfer Function')
 
 vector_h = vector
 
-powerhalo = nbodykit.cosmology.power.halofit.HalofitPower(cosmo, z) 
+powerhalo = nbodykit.cosmology.power.halofit.HalofitPower(cosmo, z)
 powerhalo = powerhalo(vector_h)
- 
+
 powerlin = nbodykit.cosmology.power.LinearPower(cosmo, z)
-powerlin = powerlin(vector_h) 
+powerlin = powerlin(vector_h)
 
 M = getM(cosmo, redshift = z, vector = vector_h)
 

@@ -4,11 +4,13 @@ Cosmology Project: Large Scale Structure of the the Primordial Universe
 
 ## Goal
 
-Reconstructing the initial matter density field before non linear gravitational evolution. Use perturbation theory and reconstruction methods of fields.
+Reconstructing the initial matter density field before non linear gravitational evolution. Use perturbation theory and reconstruction methods of fields. Then extract primordial local non Gaussianity parameter $f_{nl}$.
 
 ### Dependencies
 
-numpy, scipy, sympy, matplotlib, nbodykiy
+Python3
+
+numpy, scipy, sympy, matplotlib, nbodykit, mpmath (should be included with sympy).
 
 ### Installation
 
@@ -18,4 +20,4 @@ python setup.py install --user  (or without --user if you want)
 
 ### Usage
 
-See example.
+See examples directory. Just do: python run.py config_file_name.yaml
