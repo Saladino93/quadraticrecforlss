@@ -175,7 +175,7 @@ forecast.ns['new_bias'] = sp.sympify(new_bias_expr, locals = forecast.ns)
 forecast.add_cov_matrix(cov_dict, wedge_covariance_matrix_dict = fg_cov_dict)
 
 mu = 1
-var_values['mu'] = mu
+#var_values['mu'] = mu
 
 # print(f'Plotting spectra. Using mu = {mu} for tracer autospectrum.')
 #
