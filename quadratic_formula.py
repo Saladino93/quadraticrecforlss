@@ -88,6 +88,7 @@ class QuadraticEstimator:
             self.total_power[key] = pk_function
         elif power_type.lower() == 'signal':
             self.signal_power[key] = pk_function
+
         else:
             raise ValueError(f"Unknown power_type: {power_type}. Use 'total' or 'signal'.")
         
@@ -274,7 +275,7 @@ class QuadraticEstimator:
         c1, c2 = self._coefficients[kernel_key]
         
         # Calculate k3 = k1 + k2 (the total wavevector)
-        k3 = k1 + k2
+        k3 = k1 + k2 #K
         
         # Calculate magnitudes
         k1_mag = np.linalg.norm(k1, axis=-1)
@@ -335,12 +336,8 @@ class QuadraticEstimator:
         prod_alpha_ba : float or array
             Second term of the f function.
         """
-        # Calculate the magnitude of k_2 = |k_1 + k_3 - k_1|
+        # Calculate the magnitude of k_2 = |K-q|
         modK_q = np.sqrt(K**2 + q**2 - 2*K*q*mu)
-        
-        # Calculate the cosine of the angle between k_3 and -k_1
-        # This follows the pattern in estimator.py's f_general method
-        mu_31 = -mu
         
         # Calculate the cosine of the angle between k_3 and -k_2
         mu_32 = -(K**2 - q*K*mu) / (K*modK_q)
@@ -355,8 +352,8 @@ class QuadraticEstimator:
         
         # Calculate the f function terms with power spectra
         # Following the pattern in estimator.py's f_general method
-        prod_alpha_ab = Fkernel(K, q, mu_31) * P_AB
-        prod_alpha_ba = Fkernel(K, modK_q, mu_32) * P_BA
+        prod_alpha_ab = Fkernel(K, q, -mu) * P_AB #F(K, -q)
+        prod_alpha_ba = Fkernel(K, modK_q, mu_32) * P_BA #F(K, q-K)
         
         # Sum the terms and multiply by 2
         result = (c1 * prod_alpha_ab + c2 * prod_alpha_ba) * 2
@@ -539,23 +536,39 @@ class QuadraticEstimator:
 
         #w_alpha_AB_ = self.f(alpha, q, K, mu, tracer_A, tracer_B)[0]**2/(2*P_AX*P_BY)
         #w_alpha_AB = resultf**2/(2*P_AX*P_BY)
-        
+        #         
         # Calculate the terms in the brackets
         bounds = self.bounds(q) * self.bounds(modK_q)
         term1 = P_AX * P_BY * w_beta_XY_k1_k2
-        term2 = P_AY * P_BX * w_beta_XY_k2_k1
+        term2 = P_AY * P_BX * w_beta_XY_k1_k2 #w_beta_XY_k2_k1
         
         factor = 2*np.pi*q**2./(2*np.pi)**3.
         # Calculate the full integrand
-        result = factor * w_alpha_AB**2. * bounds * (term1 + term2)
+        result = factor * w_alpha_AB * bounds * (term1 + term2)
         
         return result
+    
+
+    def integrand_projection(self, q, mu, K, alpha, beta, 
+                 alpha_tracers=('m', 'm'),
+                 power_type='total'):
+        """
+        It calculates \int_{k} weight_alpha * f_beta.
+        """
+
+        w_alpha_AB = self.w(alpha, q, K, mu, alpha_tracers[0], alpha_tracers[1], power_type)
+        f_beta_XY, _, _ = self.f(beta, q, K, mu, alpha_tracers[0], alpha_tracers[1])
+        
+        return w_alpha_AB * f_beta_XY
+        
     
     def integrand_vec(self, q, mu, K, alpha, beta, 
                  alpha_tracers=('m', 'm'), beta_tracers=('m', 'm'),
                  power_type='total'):
         """
-        Define the integrand expression for the quadratic formula using vector operations.
+        This calculates a general variance, defined as:
+        
+        w_{alpha}^{AB}(k1, k2)*[w_{beta}^{XY}(k1, k2)P_{AX}(k1)P_{BY}(k2)+w_{beta}^{XY}(k2, k1)P_{AY}(k1)P_{BX}(k2)]
         
         This implementation is optimized for batch processing with Vegas integration.
         It converts q and mu values to 3D vectors and uses the vector-based weight function.
@@ -565,8 +578,6 @@ class QuadraticEstimator:
         - k3 is the K vector (external wavenumber)
         - k2 = k3 - k1 (the difference vector)
         
-        The integrand is:
-        w_{alpha}^{AB}(k1, k2)*[w_{beta}^{XY}(k1, k2)P_{AX}(k1)P_{BY}(k2)+w_{beta}^{XY}(k2, k1)P_{AY}(k1)P_{BX}(k2)]
         
         Parameters
         ----------
@@ -638,7 +649,7 @@ class QuadraticEstimator:
         )
         
         w_beta_XY_k2_k1 = self.w_vectors(
-            beta, k2, k1, 
+            beta, k2, k1,
             tracer_A=tracer_X, tracer_B=tracer_Y,
             power_type=power_type
         )
@@ -655,7 +666,8 @@ class QuadraticEstimator:
         # Calculate the terms in the brackets
         term1 = P_AX * P_BY * w_beta_XY_k1_k2
         term2 = P_AY * P_BX * w_beta_XY_k2_k1
-        
+
+        #print(w_beta_XY_k1_k2/w_beta_XY_k2_k1)
         # Calculate the full integrand
         # The factor includes the Jacobian for spherical integration
         factor = 2*np.pi*q**2./(2*np.pi)**3.
@@ -663,9 +675,98 @@ class QuadraticEstimator:
         
         return result
     
+    def integrand_projection_vec(self, q, mu, K, alpha, beta,
+                 alpha_tracers=('m', 'm'),
+                 power_type='total'):
+        """
+        It calculates \int_{k} weight_alpha * f_beta.
+        
+        This implementation is optimized for batch processing with Vegas integration.
+        It converts q and mu values to 3D vectors and uses the vector-based weight function.
+        
+        In the quadratic estimator formalism:
+        - k1 is the q vector (integration variable)
+        - k3 is the K vector (external wavenumber)
+        - k2 = k3 - k1 (the difference vector)
+        
+        The integrand is:
+        \int_{k1} w_{alpha}^{AB}(k1, k2)f_beta(k1, k2)
+        
+        Parameters
+        ----------
+        q : array-like
+            Wavenumber k1 (integration variable), can be a batch of values.
+        mu : array-like
+            Cosine of the angle between k1 and k3, can be a batch of values.
+        K : float
+            External wavenumber k3 (scalar value).
+        alpha : str
+            Key for first F function.
+        beta : str
+            Key for second F function.
+        alpha_tracers : tuple, optional
+            Tracers for alpha weight (tracer_A, tracer_B).
+        beta_tracers : tuple, optional
+            Tracers for beta weight (tracer_X, tracer_Y).
+        power_type : str, optional
+            Type of power spectrum to use: 'total' or 'signal'.
+            
+        Returns
+        -------
+        result : array-like
+            Value of the integrand for each point in the batch.
+        """
+        # Extract tracers
+        tracer_A, tracer_B = alpha_tracers
+
+        # Ensure q and mu are arrays for batch processing
+        q = np.atleast_1d(q)
+        mu = np.atleast_1d(mu)
+        
+        # Set up coordinate system:
+        # - Place k3 (K vector) along the z-axis: k3 = [0, 0, K]
+        # - Place k1 (q vector) in the x-z plane with angle mu to k3
+        
+        # Calculate the x and z components of k1 (q vector)
+        # k1 = q * [sin(theta), 0, cos(theta)] where cos(theta) = mu
+        k1_x = q * np.sqrt(1 - mu**2)  # sin(theta) = sqrt(1 - mu^2)
+        k1_z = q * mu
+        
+        # Create the k1 vector [k1_x, 0, k1_z]
+        k1 = np.stack([k1_x, np.zeros_like(q), k1_z], axis=-1)
+        
+        # Create the k3 vector [0, 0, K]
+        k3 = np.zeros_like(k1)
+        k3[..., 2] = K  # Set the z-component to K
+        
+        # Calculate k2 = k3 - k1 (the difference vector)
+        k2 = k3 - k1
+        
+        # Calculate magnitudes
+        k1_mag = q  # We already know this is q
+        k2_mag = np.linalg.norm(k2, axis=-1)  # |K-q|
+        
+        # Calculate the weight functions using the vector-based methods
+        w_alpha_AB = self.w_vectors(
+            alpha, k1, k2, 
+            tracer_A=tracer_A, tracer_B=tracer_B,
+            power_type=power_type
+        )
+
+        f_beta_AB, _, _ = self.f_vectors(beta, k1, k2, tracer_A, tracer_B)
+        
+        # Apply bounds to ensure we're within the valid k range
+        bounds = self.bounds(k1_mag) * self.bounds(k2_mag)
+        
+        factor = 2*np.pi*q**2./(2*np.pi)**3.
+        result = factor * w_alpha_AB * f_beta_AB * bounds
+        return result
+    
+
+    
     def _outer_integral_vegas(self, K, alpha, beta, 
                              alpha_tracers=('m', 'm'), beta_tracers=('m', 'm'),
-                             power_type='total'):
+                             power_type='total', case = "variance"):
         """
         Create a Vegas batch integrand function for the quadratic formula.
         
@@ -686,6 +787,8 @@ class QuadraticEstimator:
             Tracers for beta weight (tracer_X, tracer_Y).
         power_type : str, optional
             Type of power spectrum to use: 'total' or 'signal'.
+        case : str, optional
+            Case to use: 'variance' or 'projection'.
             
         Returns
         -------
@@ -700,17 +803,25 @@ class QuadraticEstimator:
             q = x[:, 1]
             
             # Calculate integrand for each point
-            result = self.integrand_vec(
-                    q, mu, K, alpha, beta,
-                    alpha_tracers, beta_tracers,
-                    power_type)
-            
+            if case == "variance":
+                result = self.integrand_vec(
+                        q, mu, K, alpha, beta,
+                        alpha_tracers, beta_tracers,
+                        power_type)
+            elif case == "projection":
+                result = self.integrand_projection(
+                        q, mu, K, alpha, beta,
+                        alpha_tracers,
+                        power_type)
+            else:
+                raise ValueError(f"Invalid case: {case}")
             return result
         
         return _integrand
+
     
-    def variance_estimators(self, alpha, beta, K, minq, maxq, 
-                           alpha_tracers=('m', 'm'), beta_tracers=('m', 'm'),
+    def estimator(self, case, alpha, beta, K, minq, maxq, 
+                           alpha_tracers=('m', 'm'), beta_tracers=None,
                            power_type='total', nitn=10, neval=1000, show_progress=True):
         """
         Implement the quadratic formula using Vegas Monte Carlo integration.
@@ -749,6 +860,11 @@ class QuadraticEstimator:
         error : float or array-like
             Estimated error of the result.
         """
+
+        assert case in ["variance", "projection"], "Invalid case"
+        if case == "variance":
+            assert beta_tracers is not None, "beta_tracers must be provided for variance estimator"
+
         try:
             import vegas
         except ImportError:
@@ -774,7 +890,7 @@ class QuadraticEstimator:
             
             # Get the batch integrand function
             integrand_func = self._outer_integral_vegas(
-                k_val, alpha, beta, alpha_tracers, beta_tracers, power_type
+                k_val, alpha, beta, alpha_tracers, beta_tracers, power_type, case = case
             )
             
             # Set up the Vegas integrator with direct mu and q ranges

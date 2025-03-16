@@ -9,5 +9,5 @@ setup(name='quadforlss',
       author_email='od261@cam.ac.uk',
       license='BSD-2-Clause',
       packages=['quadforlss'],
-      package_dir={'quadforlss':'estimator'},
-      zip_safe=False)
+      #package_dir={'quadforlss':'estimator'}
+      )

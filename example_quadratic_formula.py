@@ -35,6 +35,7 @@ def main():
     
     # Extract bias parameters
     b10 = float(values['survey_config']['tracer_properties']['biases']['b10'])
+    b10_2 = b10
     b20 = float(values['survey_config']['tracer_properties']['biases']['b20'])
     bs2 = values['survey_config']['tracer_properties']['biases']['bs2']
     
@@ -54,7 +55,7 @@ def main():
     # Define estimators and their coefficients
     estimator_configs = {
         'g': {
-            'F': 17./21.,
+            'F': 17./21., 
             'ca': 1,#b10 + 21/17 * b20,
             'cb': 1#b10
         },
@@ -71,8 +72,8 @@ def main():
         'x': {
             #'F': 1/(q1+q2)*mu, 
             'F': 0.5*(q2/q1+q1/q2)*mu,
-            'ca': 1,#b10 + 7/2 * bs2,
-            'cb': 0.001 #b10
+            'ca': 0,#b10 + 7/2 * bs2,
+            'cb': 1#0.0001 #b10
         }
     }
     
@@ -118,6 +119,11 @@ def main():
     # Create galaxy power spectra
     pk_galgal_nonlinear = b10**2 * pk_mm_nonlinear
     pk_galgal_total = pk_galgal_nonlinear + shot_noise
+    
+    pk_gal2gal2_total = b10_2**2*pk_mm_nonlinear + shot_noise
+
+    pk_galgal2_total = b10*b10_2*pk_mm_nonlinear + shot_noise#*0 #assume no common halos
+
     pk_mm_total = pk_mm_nonlinear
     pk_galm_nonlinear = b10 * pk_mm_nonlinear
     
@@ -125,12 +131,18 @@ def main():
     # Signal power spectra (linear)
     estimator.add_power_spectrum('mm', k_values, pk_mm_linear, 'signal')
     estimator.add_power_spectrum('galgal', k_values, pk_mm_linear, 'signal')
+    estimator.add_power_spectrum('gal2gal2', k_values, pk_mm_linear, 'signal')
+    estimator.add_power_spectrum('galgal2', k_values, pk_mm_linear, 'signal')
+    estimator.add_power_spectrum('gal2gal', k_values, pk_mm_linear, 'signal')
     estimator.add_power_spectrum('galm', k_values, pk_mm_linear, 'signal')
     estimator.add_power_spectrum('mgal', k_values, pk_mm_linear, 'signal')
     
     # Total power spectra (nonlinear + noise)
     estimator.add_power_spectrum('mm', k_values, pk_mm_total, 'total')
     estimator.add_power_spectrum('galgal', k_values, pk_galgal_total, 'total')
+    estimator.add_power_spectrum('gal2gal2', k_values, pk_gal2gal2_total, 'total')
+    estimator.add_power_spectrum('galgal2', k_values, pk_galgal2_total, 'total')
+    estimator.add_power_spectrum('gal2gal', k_values, pk_galgal2_total, 'total')
     estimator.add_power_spectrum('galm', k_values, pk_galm_nonlinear, 'total')
     estimator.add_power_spectrum('mgal', k_values, pk_galm_nonlinear, 'total')
     
@@ -142,11 +154,11 @@ def main():
     estimator.Krange = K_values
     
     # Vegas integration parameters
-    nitn = values['analysis_config'].get('nitn', 60)
-    neval = values['analysis_config'].get('neval', 500)
+    nitn = values['analysis_config'].get('nitn', 200)
+    neval = values['analysis_config'].get('neval', 800)
     
     # Define tracer combinations
-    tracer_combinations = [('gal', 'gal')]  # Changed from ('g', 'g') to ('gal', 'gal')
+    tracer_combinations = [('gal', 'gal2')]  # Changed from ('g', 'g') to ('gal', 'gal')
     
     # Create a list of all estimator pairs to calculate
     estimator_keys = list(estimator_configs.keys())
@@ -171,13 +183,23 @@ def main():
             key = f"{alpha}{beta}_{tracers[0]}{tracers[1]}"
             print(f"Computing variance for {key}...")
             
-            means, errors = estimator.variance_estimators(
+            means, errors = estimator.estimator("variance",
                 alpha, beta, K_values, mink, maxk,
                 alpha_tracers=alpha_tracers, beta_tracers=beta_tracers,
                 nitn=nitn, neval=neval, show_progress=True
             )
             
             # Store only the means with a simplified key (no "_mean" suffix)
+            results[key] = means
+
+            key = f"{alpha}{beta}_{tracers[0]}"
+            print(f"Computing bias for {key}...")
+            means, errors = estimator.estimator("projection",
+                alpha, beta, K_values, mink, maxk,
+                alpha_tracers=alpha_tracers,
+                nitn=nitn, neval=neval, show_progress=True
+            )
+
             results[key] = means
     
     # Convert results to pandas DataFrame
